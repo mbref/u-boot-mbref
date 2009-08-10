@@ -30,6 +30,7 @@
 #include <timestamp.h>
 #include <version.h>
 #include <watchdog.h>
+#include <net.h>
 #include <stdio_dev.h>
 
 DECLARE_GLOBAL_DATA_PTR;
@@ -41,9 +42,6 @@ extern int gpio_init (void);
 #endif
 #ifdef CONFIG_SYS_INTC_0
 extern int interrupts_init (void);
-#endif
-#if defined(CONFIG_CMD_NET)
-extern int eth_init (bd_t * bis);
 #endif
 #ifdef CONFIG_SYS_TIMER_0
 extern int timer_init (void);
@@ -165,8 +163,12 @@ void board_init (void)
 
 #if defined(CONFIG_CMD_NET)
 	/* IP Address */
-	bd->bi_ip_addr = getenv_IPaddr ("ipaddr");
-	eth_init (bd);
+	bd->bi_ip_addr = getenv_IPaddr("ipaddr");
+
+#if defined(CONFIG_NET_MULTI)
+	puts("Net:   ");
+#endif
+	eth_initialize(bd);
 #endif
 
 	/* main_loop */

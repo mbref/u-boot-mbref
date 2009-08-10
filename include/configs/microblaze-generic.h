@@ -229,7 +229,9 @@
 
 #ifndef CONFIG_SYS_ENET
 	#undef CONFIG_CMD_NET
+	#undef CONFIG_NET_MULTI
 #else
+	#define CONFIG_NET_MULTI
 	#define CONFIG_CMD_PING
 	#define CONFIG_CMD_DHCP
 #endif

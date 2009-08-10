@@ -22,4 +22,17 @@
  * MA 02111-1307 USA
  */
 
-/* EMPTY FILE */
+#include <common.h>
+#include <config.h>
+#include <netdev.h>
+
+int cpu_eth_init(bd_t *bis)
+{
+#ifdef CONFIG_XILINX_EMACLITE
+	return xilinx_emaclite_initialize(bis);
+#endif
+#ifdef CONFIG_XILINX_LL_TEMAC
+	return xilinx_ll_temac_initialize(bis);
+#endif
+}
+
