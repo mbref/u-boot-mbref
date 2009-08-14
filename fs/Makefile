@@ -18,6 +18,7 @@ obj-y += fat/
 obj-$(CONFIG_CMD_FDOS) += fdos/
 obj-$(CONFIG_CMD_JFFS2) += jffs2/
 obj-$(CONFIG_CMD_REISER) += reiserfs/
+obj-$(CONFIG_CMD_ROMFS) += romfs/
 obj-$(CONFIG_SANDBOX) += sandbox/
 obj-$(CONFIG_CMD_UBIFS) += ubifs/
 obj-$(CONFIG_YAFFS2) += yaffs2/
