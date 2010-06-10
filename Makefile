@@ -197,8 +197,8 @@ LIBS += cpu/ixp/npe/libnpe.a
 endif
 LIBS += lib_$(ARCH)/lib$(ARCH).a
 LIBS += fs/cramfs/libcramfs.a fs/fat/libfat.a fs/fdos/libfdos.a fs/jffs2/libjffs2.a \
-	fs/reiserfs/libreiserfs.a fs/ext2/libext2fs.a fs/yaffs2/libyaffs2.a \
-	fs/ubifs/libubifs.a
+	fs/reiserfs/libreiserfs.a fs/romfs/libromfs.a fs/ext2/libext2fs.a \
+	fs/yaffs2/libyaffs2.a fs/ubifs/libubifs.a
 LIBS += net/libnet.a
 LIBS += disk/libdisk.a
 LIBS += drivers/bios_emulator/libatibiosemu.a
@@ -3456,6 +3456,9 @@ suzaku_config:	unconfig
 	@mkdir -p $(obj)include
 	@echo "#define CONFIG_SUZAKU 1" > $(obj)include/config.h
 	@$(MKCONFIG) -a $(@:_config=) microblaze microblaze suzaku AtmarkTechno
+
+petalogix-microblaze-auto_config:	unconfig
+	@./mkconfig $(@:_config=) microblaze microblaze microblaze-auto petalogix
 
 #========================================================================
 # Blackfin
