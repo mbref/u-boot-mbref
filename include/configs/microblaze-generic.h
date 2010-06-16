@@ -238,6 +238,7 @@
 #else
 	#define CONFIG_CMD_PING
 	#define CONFIG_NET_MULTI
+	#define CONFIG_CMD_DHCP
 #endif
 
 #if defined(CONFIG_SYSTEMACE)
