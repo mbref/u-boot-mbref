@@ -77,6 +77,11 @@ IMAGE_PAR=0
 # JFFS2 (root) image partition index
 JFFS2_PAR=0
 
+# SPI Flash device
+SPI_FLASH_DEV=
+# SPI Flash SPI mode
+SPI_FLASH_MODE=
+
 #
 # Partition table arrays
 #
@@ -99,6 +104,19 @@ MAX_NUM_PARTITIONS=20
 #
 function read_config_file ()
 {
+	# Get SPI Flash device if it is configured
+	spi_flash_dev_config=$(grep "^[:blank:]*CONFIG_SYSTEM_SPI_FLASH_DEV_.*=[:blank:]*y" $CONFIG_CONFIG | sed "s/[:blank:]*CONFIG_SYSTEM_SPI_FLASH_DEV_\(.*\)=[:blank:]*y/\1/g" | tr -d "[:blank:]")
+	case "${spi_flash_dev_config}" in
+		"WINBOND_W25")
+			SPI_FLASH_DEV="WINBOND"; ;;
+		*)
+			;;
+	esac
+
+	# Get SPI Flash SPI mode
+	SPI_FLASH_MODE=$(grep "^[:blank:]*CONFIG_SYSTEM_SPI_FLASH_SPI_MODE.*=[:blank:]*y" $CONFIG_CONFIG | sed "s/[:blank:]*CONFIG_SYSTEM_SPI_FLASH_SPI_MODE\(.*\)=[:blank:]*y/\1/g" | tr -d "[:blank:]")
+
+
 	last=0
 	# No idea how many partitions are there, loop through all
 	# start from 1st to last to normalised data.
@@ -152,7 +170,8 @@ function read_config_file ()
 				# Calculate start address of partition
 				if [ $CNT = 1 ]; then
 					# First partition
-					PAR_ADDR[$CNT]=$FLASH_START
+					# If the FLASH_START is empty, the First Partition address is 0x0
+					PAR_ADDR[$CNT]=$(($FLASH_START))
 				else
 					# Subsequent partition
 					PAR_ADDR[$CNT]=$(( ${PAR_ADDR[$CNT -1]} + \
@@ -317,7 +336,9 @@ function sub_config_file ()
 			 s/\@besize\@/${PAR_SIZE[$BOOTENV_PAR]}/g
 			 s/\@bestart\@/${PAR_ADDR[$BOOTENV_PAR]}/g
 			 s/\@cstart\@/$ERAM_START/g
-			 s/\@nstart\@/$NET_START/g \
+			 s/\@nstart\@/$NET_START/g
+			 s/\@spiflashdev\@/${SPI_FLASH_DEV}/g
+			 s/\@spiflashmode\@/${SPI_FLASH_MODE}/g \
 			}" < $UBOOT_SCRIPT_BOARD_TEMPLATE > $UBOOT_SCRIPT_BOARD
 
 	# Add substitution code - here

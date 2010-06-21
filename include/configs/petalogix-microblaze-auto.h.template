@@ -149,11 +149,11 @@
 #define	CONFIG_SYS_MALLOC_BASE		(CONFIG_SYS_MONITOR_BASE - CONFIG_SYS_MALLOC_LEN)
 
 /* stack */
-#define	CONFIG_SYS_INIT_SP_OFFSET	CONFIG_SYS_MONITOR_BASE
+#define	CONFIG_SYS_INIT_SP_OFFSET	CONFIG_SYS_MALLOC_BASE
 
 /*#define	RAMENV */
 
-#ifdef XILINX_FLASH_START
+#ifdef XILINX_FLASH_START /* Parallel Flash */
 	#define	FLASH
 	#define	CONFIG_SYS_FLASH_BASE		XILINX_FLASH_START
 	#define	CONFIG_SYS_FLASH_SIZE		XILINX_FLASH_SIZE
@@ -175,6 +175,25 @@
 		#define	CONFIG_ENV_ADDR		@bestart@
 		#define	CONFIG_ENV_SIZE		@besize@
 	#endif /* !RAMBOOT */
+#elif defined(XILINX_SPI_FLASH_BASEADDR) /* SPI Flash */
+	#define CONFIG_XILINX_SPI_BASEADDR	XILINX_SPI_FLASH_BASEADDR
+	#define CONFIG_XILINX_SPI	1
+	#define CONFIG_SPI_FLASH	1
+	#define CONFIG_CMD_SF
+	#define CONFIG_ENV_SPI_MAX_HZ	XILINX_SPI_FLASH_MAX_FREQ
+	#define CONFIG_ENV_SPI_MODE	@spiflashmode@
+	#define CONFIG_ENV_SPI_CS	XILINX_SPI_FLASH_CS
+	#define CONFIG_SYS_NO_FLASH
+	#undef CONFIG_CMD_FLASH
+	#define CONFIG_ENV_IS_IN_SPI_FLASH
+	#define CONFIG_ENV_OFFSET	@bestart@
+	#define CONFIG_ENV_SIZE	@besize@
+	#define CONFIG_ENV_SECT_SIZE	0x20000 /* 128K(one sector) for env */
+
+	#ifndef CONFIG_SPI_FLASH_DEV_USERDEFINED
+		#define CONFIG_SPI_FLASH_@spiflashdev@
+	#endif
+
 #else /* !FLASH */
 	/* ENV in RAM */
 	#define	CONFIG_SYS_NO_FLASH		1
@@ -226,11 +245,12 @@
 
 #define CONFIG_CMD_ROMFS
 
-#if defined(CONFIG_DCACHE) || defined(CONFIG_ICACHE)
+/*#if defined(CONFIG_DCACHE) || defined(CONFIG_ICACHE)
 	#define CONFIG_CMD_CACHE
 #else
 	#undef CONFIG_CMD_CACHE
 #endif
+*/
 
 #ifndef CONFIG_SYS_ENET
 	#undef CONFIG_CMD_NET
@@ -247,7 +267,6 @@
 #endif
 
 #if defined(FLASH)
-	#define CONFIG_CMD_ECHO
 	#define CONFIG_CMD_FLASH
 	#define CONFIG_CMD_IMLS
 	#define CONFIG_CMD_JFFS2
@@ -284,8 +303,13 @@
 #define	CONFIG_BOOTDELAY	4
 #define	CONFIG_BOOTARGS		""
 #define	CONFIG_HOSTNAME		XILINX_BOARD_NAME
+#ifdef FLASH
 #define	CONFIG_BOOTCOMMAND	"run make_cmdline; bootm ${kernstart}" \
 
+#elif defined(CONFIG_SPI_FLASH)
+#define CONFIG_BOOTCOMMAND	"run sfboot" \
+
+#endif
 #define	CONFIG_IPADDR		@ipaddr@
 #define	CONFIG_SERVERIP		@serverip@
 #define	CONFIG_ETHADDR		@ethaddr@
@@ -296,8 +320,8 @@
 
 #define	CONFIG_PREBOOT		"echo U-BOOT for ${hostname};setenv preboot;echo;@dhcp@"
 
-#if defined(FLASH)
-#define	CONFIG_EXTRA_ENV_SETTINGS \
+#if defined(FLASH) || defined(CONFIG_SPI_FLASH)
+#define CONFIG_EXTRA_ENV_SETTINGS_COMMON \
 	"autoload=no\0" \
 	"bootfile=image.ub\0" \
 	"mtdids=nor0=@mtdpartsname@\0" \
@@ -305,39 +329,60 @@
 	CONSOLE_ARG \
 	"clobstart=@cstart@\0" \
 	"netstart=@nstart@\0" \
+	"loadaddr=@nstart@\0" \
 	"bootsize=@bsize@\0" \
 	"bootstart=@bstart@\0" \
 	"bootenvsize=@besize@\0" \
 	"bootenvstart=@bestart@\0" \
 	"jffs2size=@jffs2size@\0" \
 	"jffs2start=@jffs2start@\0" \
-	"eraseenv=protect off ${bootenvstart} +${bootenvsize}; erase ${bootenvstart} +${bootenvsize}\0" \
 	"kernsize=@ksize@\0" \
 	"kernstart=@kstart@\0" \
 	"make_cmdline=setenv netkargs macaddr=${ethaddr};setenv bootargs mtdparts=${mtdparts} ${netkargs} ${console}\0" \
 	"load_kernel=tftp ${clobstart} image.ub\0" \
-	"install_kernel=protect off ${kernstart} +${kernsize};erase ${kernstart} +${kernsize};" \
-		"cp.b ${fileaddr} ${kernstart} ${filesize}\0" \
 	"update_kernel=run load_kernel install_kernel\0" \
 	"load_uboot=tftp ${clobstart} u-boot-s.bin\0" \
-	"install_uboot=protect off ${bootstart} +${bootsize};erase ${bootstart} +${bootsize};" \
-		"cp.b ${clobstart} ${bootstart} ${filesize}\0" \
 	"update_uboot=run load_uboot install_uboot\0" \
 	"load_jffs2=tftp ${clobstart} rootfs.jffs2\0" \
+	"update_jffs2=run load_jffs2 install_jffs2\0" \
+	"netboot=run make_cmdline;tftp ${netstart} image.ub; bootm\0"
+#endif
+
+#if defined(FLASH) /* Parallel Flash */
+#define CONFIG_EXTRA_ENV_SETTINGS \
+	CONFIG_EXTRA_ENV_SETTINGS_COMMON \
+	"eraseenv=protect off ${bootenvstart} +${bootenvsize}; erase ${bootenvstart} +${bootenvsize}\0" \
+	"install_kernel=protect off ${kernstart} +${kernsize};erase ${kernstart} +${kernsize};" \
+		"cp.b ${fileaddr} ${kernstart} ${filesize}\0" \
+	"install_uboot=protect off ${bootstart} +${bootsize};erase ${bootstart} +${bootsize};" \
+		"cp.b ${clobstart} ${bootstart} ${filesize}\0" \
 	"install_jffs2=protect off ${jffs2start} +${jffs2size};erase ${jffs2start} +${jffs2size};" \
 		"cp.b ${clobstart} ${jffs2start} ${filesize}\0" \
-	"update_jffs2=run load_jffs2 install_jffs2\0" \
-	"netboot=run make_cmdline;tftp ${netstart} image.ub; bootm\0" \
 	""
-#else
+#elif defined(CONFIG_SPI_FLASH) /* SPI Flash */
+#define CONFIG_EXTRA_ENV_SETTINGS \
+	CONFIG_EXTRA_ENV_SETTINGS_COMMON \
+	"eraseenv=sf probe 0; sf erase ${bootenvstart} ${bootenvsize}\0" \
+	"install_kernel=sf probe 0; sf erase ${kernstart} ${kernsize};" \
+		"sf write ${fileaddr} ${kernstart} 0x${filesize}\0" \
+	"install_uboot=sf probe 0; sf erase ${bootstart} ${bootsize};" \
+		"sf write ${clobstart} ${bootstart} 0x${filesize}\0" \
+	"install_jffs2=sf probe 0; sf erase ${jffs2start} ${jffs2size};" \
+		"sf write ${clobstart} ${jffs2start} 0x${filesize}\0" \
+	"sfboot=sf probe 0; sf read ${netstart} ${kernstart} ${kernsize}; bootm ${netstart}\0" \
+	""
+#else /* No Flash */
 #define	CONFIG_EXTRA_ENV_SETTINGS \
 	CONSOLE_ARG \
+	"autoload=no\0" \
+	"bootfile=image.ub\0" \
 	"netstart=@nstart@\0" \
+	"loadaddr=@nstart@\0" \
 	"make_cmdline=setenv netkargs macaddr=${ethaddr};setenv bootargs ${netkargs} ${console}\0" \
 	"bootcmd=run netboot\0" \
 	"netboot=run make_cmdline;tftp ${netstart} image.ub; bootm\0" \
 	""
-#endif
+#endif /* Flash */
 
 #define CONFIG_CMDLINE_EDITING
 

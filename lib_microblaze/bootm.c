@@ -111,12 +111,21 @@ void do_bootm_linux (int flag, int argc, char *argv[],
 	 */
 
 //#ifdef DEBUG
-	printf ("## Transferring control to Linux (at address %08lx), 0x%08x " \
-				"ramdisk 0x%08x, FDT 0x%08x...\n",
+	printf ("## Transferring control to Linux (at address %08lx), 0x%08lx"\
+				" ramdisk 0x%08lx, FDT 0x%08lx...\n",
 		(ulong) theKernel, ep, rd_data_start, (ulong) of_flat_tree);
 //#endif
 	//if (!images->autostart)
 	//	return ;
+
+#ifdef XILINX_USE_DCACHE
+#ifdef XILINX_DCACHE_BYTE_SIZE
+	flush_cache(0, XILINX_DCACHE_BYTE_SIZE);
+#else
+#warning please rebuild BSPs and update configuration
+	flush_cache(0, 32768);
+#endif
+#endif
 
 	theKernel (commandline, rd_data_start, (ulong) of_flat_tree);
 
