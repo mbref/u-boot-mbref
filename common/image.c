@@ -1178,6 +1178,7 @@ static int fit_check_fdt (const void *fit, int fdt_noffset, int verify)
  *      0 - success
  *      1 - failure
  */
+#if defined(CONFIG_SYS_BOOTMAPSZ)
 int boot_relocate_fdt (struct lmb *lmb, ulong bootmap_base,
 		char **of_flat_tree, ulong *of_size)
 {
@@ -1257,6 +1258,7 @@ int boot_relocate_fdt (struct lmb *lmb, ulong bootmap_base,
 error:
 	return 1;
 }
+#endif /* CONFIG_SYS_BOOTMAPSZ */
 
 /**
  * boot_get_fdt - main fdt handling routine
