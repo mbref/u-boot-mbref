@@ -78,7 +78,19 @@ static int __def_eth_init(bd_t *bis)
 {
 	return -1;
 }
+#if defined(__MICROBLAZE__) && \
+	(__GNUC__ <= 4) && (__GNUC_MINOR__ <= 1) && (__GNUC_PATCHLEVEL__ <= 3)
+/* It seams the current microblaze compiler (4.1.2) is not doing a good job
+ * of handling the "weak" attribute of gcc. Read more at:
+ *   http://www.mail-archive.com/u-boot@lists.denx.de/msg09779.html
+ *   http://forums.xilinx.com/t5/Embedded-Linux/Problem-Building-Linux-with-PCI-for-Microblaze/m-p/67037
+ *
+ * The only thing we can do is to declare cpu_eth_init() as external.
+ */
+extern int cpu_eth_init(bd_t *bis);
+#else
 int cpu_eth_init(bd_t *bis) __attribute__((weak, alias("__def_eth_init")));
+#endif
 int board_eth_init(bd_t *bis) __attribute__((weak, alias("__def_eth_init")));
 
 extern int mv6436x_eth_initialize(bd_t *);
