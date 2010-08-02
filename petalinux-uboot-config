@@ -1,0 +1,397 @@
+#!/bin/bash
+#
+#  FILE:
+#     petalinux-uboot-config
+#
+#  DESCRIPTION:
+#     PetaLinux U-boot configuration.
+#
+#	  Majority of this script is dedicated to synchronising
+#	  the FLASH partition configurations in config/.config
+#	  with the U-Boot build parameters.  This is to allow a
+#	  set-once-and-build-for-all framework.
+#
+#	  The idea is to properate the user configurations on the
+#     flash partitioning to U-Boot and subsequently to the Linux
+#	  kernel via kernel boot arguments.
+#
+#  AUTHOR:
+#      Benny Chen   <benny.chen@petalogix.com>
+#
+#  MODIFICATION:
+#      Michal Simek <michal.simek@petalogix.com>
+#
+#  LICENSING:
+#      Copyright (c) 2006 PetaLogix. All rights reserved.
+#
+#   This program is free software; you can redistribute  it and/or modify it
+#   under  the terms of  the GNU General Public License as published by the
+#   Free Software Foundation;  either version 2 of the  License, or (at your
+#   option) any later version.
+#
+#   THIS  SOFTWARE  IS PROVIDED   ``AS  IS'' AND   ANY  EXPRESS OR IMPLIED
+#   WARRANTIES,   INCLUDING, BUT NOT  LIMITED  TO, THE IMPLIED WARRANTIES OF
+#   MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.  IN
+#   NO  EVENT  SHALL   THE AUTHOR  BE    LIABLE FOR ANY   DIRECT, INDIRECT,
+#   INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
+#   NOT LIMITED   TO, PROCUREMENT OF  SUBSTITUTE GOODS  OR SERVICES; LOSS OF
+#   USE, DATA,  OR PROFITS; OR  BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON
+#   ANY THEORY OF LIABILITY, WHETHER IN  CONTRACT, STRICT LIABILITY, OR TORT
+#   (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
+#   THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+#
+#   You should have received a copy of the  GNU General Public License along
+#   with this program; if not, write  to the Free Software Foundation, Inc.,
+#   675 Mass Ave, Cambridge, MA 02139, USA.
+#
+
+source $CONFIG_CONFIG
+
+# Not doing this if we are not build U-Boot
+if [ "${CONFIG_SYSTEM_BUILD_UBOOT}" != 'y' ]; then
+	exit 0
+fi
+
+#
+# Variables for generating flash
+# partitioning output file.
+#
+OUTFILE_DIR=$UBOOT_BOARD_DIR
+OUTFILE=$OUTFILE_DIR/flash-partition.h
+TMPEXT=.tmp
+TMPFILE=$OUTFILE$TMPEXT
+
+# MTD PARTS Variable - Use to store MTDPARTS string
+MTDPARTS=""
+
+#
+# Indexes to our Partition table arrays
+#
+
+# Bootloader image partition index
+BOOT_PAR=0
+# Boot environment partition index
+BOOTENV_PAR=0
+# Kernel image partition index
+IMAGE_PAR=0
+# JFFS2 (root) image partition index
+JFFS2_PAR=0
+
+# SPI Flash device
+SPI_FLASH_DEV=
+# SPI Flash SPI mode
+SPI_FLASH_MODE=
+
+#
+# Partition table arrays
+#
+
+# Contains the partition name
+declare -a PAR_NAME
+# Contains the partition size
+declare -a PAR_SIZE
+# Contains the calculated start address of each partition
+declare -a PAR_ADDR
+
+# Maximum number of partitions - FIXME should be declared some where
+MAX_NUM_PARTITIONS=20
+
+#
+# This function parses the $CONFIG_CONFIG file
+# for partition definitions information.
+# The result of this function is stored in the
+# corresponding partition table arrays.
+#
+function read_config_file ()
+{
+	# Get SPI Flash device if it is configured
+	spi_flash_dev_config=$(grep "^[:blank:]*CONFIG_SYSTEM_SPI_FLASH_DEV_.*=[:blank:]*y" $CONFIG_CONFIG | sed "s/[:blank:]*CONFIG_SYSTEM_SPI_FLASH_DEV_\(.*\)=[:blank:]*y/\1/g" | tr -d "[:blank:]")
+	case "${spi_flash_dev_config}" in
+		"WINBOND_W25")
+			SPI_FLASH_DEV="WINBOND"; ;;
+		*)
+			;;
+	esac
+
+	# Get SPI Flash SPI mode
+	SPI_FLASH_MODE=$(grep "^[:blank:]*CONFIG_SYSTEM_SPI_FLASH_SPI_MODE.*=[:blank:]*y" $CONFIG_CONFIG | sed "s/[:blank:]*CONFIG_SYSTEM_SPI_FLASH_SPI_MODE\(.*\)=[:blank:]*y/\1/g" | tr -d "[:blank:]")
+
+
+	last=0
+	# No idea how many partitions are there, loop through all
+	# start from 1st to last to normalised data.
+	for (( CNT=1; CNT<$MAX_NUM_PARTITIONS+1; CNT++ )); do
+		# The different types of processing required
+		for field in "NAME" "SIZE" "ADDR"; do
+			# Do some substitution to get the variables that we are interested
+			if [ $field != "ADDR" ]; then
+				str="CONFIG_SYSTEM_PARTITION"$CNT"_"$field
+				tmp=$(grep $str $CONFIG_CONFIG | \
+					cut -d "=" -f 2 | tr -d '"')
+				# Reached the last partition ""
+				if [ -z $tmp ]; then
+					last=1
+					break
+				fi
+			fi
+
+			# Here we get the indexes into our interested partitions
+			if [ $field == "NAME" ]; then
+				# Update indexes into your partition
+				if [ $tmp == "boot" ]; then
+					BOOT_PAR=$CNT
+				elif [ $tmp == "bootenv" ]; then
+					BOOTENV_PAR=$CNT
+				elif [ $tmp == "image" ]; then
+					IMAGE_PAR=$CNT
+				elif [ $tmp == "jffs2" ]; then
+					JFFS2_PAR=$CNT
+				fi
+
+				# Update our Name array
+				PAR_NAME[$CNT]=$tmp
+			elif [ $field == "SIZE" ]; then
+				# check if value is specified with 0x appended
+				if [ ${tmp:0:2} != "0x" ]; then
+				    # Add 0x so sh knows that value is in hex
+					tmp=0x$tmp
+				fi
+				# if this partition is the spare partition
+				# we know this from the 0x0 size
+				if [ $tmp == "0x0" ]; then
+					# Calculate the remainder of the FLASH for size
+					PAR_SIZE[$CNT]=$(( $FLASH_START + $FLASH_SIZE \
+							- ${PAR_SIZE[$CNT -1]} - ${PAR_ADDR[$CNT - 1]} ))
+				else
+					PAR_SIZE[$CNT]=$tmp
+				fi
+				PAR_SIZE[$CNT]=$(printf "0x%08x\n" ${PAR_SIZE[$CNT]})
+			else
+				# Calculate start address of partition
+				if [ $CNT = 1 ]; then
+					# First partition
+					# If the FLASH_START is empty, the First Partition address is 0x0
+					PAR_ADDR[$CNT]=$(($FLASH_START))
+				else
+					# Subsequent partition
+					PAR_ADDR[$CNT]=$(( ${PAR_ADDR[$CNT -1]} + \
+											${PAR_SIZE[$CNT -1]} ))
+				fi
+				# We want to maintain the hex value
+				PAR_ADDR[$CNT]=`printf "0x%08x" "${PAR_ADDR[$CNT]}"`
+			fi
+		done
+		# Just so we can break out of nested for loops
+		if [ $last = 1 ]; then
+			break
+		fi
+	done
+}
+
+#
+# The objectives of this function is
+# to abstract all the partition table
+# verifications routine.
+#
+function check_partition_table ()
+{
+	if [ $FLASH_START ]; then
+		# Some checks apply to all the partitions
+		for (( CNT=1; CNT<${#PAR_NAME[@]} + 1; CNT++ )); do
+			# Check that partition is in FLASH Range
+			if [ $((${PAR_ADDR[$CNT]} + ${PAR_SIZE[$CNT]})) -gt  $(($FLASH_START + $FLASH_SIZE)) ]; then
+				printf "FLASH partition %s not in FLASH range\n" "${PAR_NAME[$CNT]}"
+				exit -1
+			fi
+
+			# Add checks that applies to all partitions here
+		done
+
+		# Check if boot, bootenv and image partitions are
+		# defined.  This is the minimum partitions required
+		# for U-Boot.
+		# FIXME - At the moment the names are hardcoded to boot,
+		#	 	  bootenv, and image.
+		if [ $BOOT_PAR = 0 ]; then
+			echo "FLASH partition \"boot\" not defined!"
+			exit -1
+		elif [ $BOOTENV_PAR = 0 ]; then
+			echo "FLASH partition \"bootenv\" not defined!"
+			exit -1
+		elif [ $IMAGE_PAR = 0 ]; then
+			echo "FLASH partition \"image\" not defined!"
+			exit -1
+		fi
+		if [ "${CONFIG_SYSTEM_ROOTFS_JFFS2}" = "y" ] && \
+		   [ "${JFFS2_PAR}" = 0 ]; then
+			echo "JFFS2 partition \"jffs2\" not defined!"
+			exit -1;
+		fi
+	fi
+}
+
+#
+# This function generates partition table
+# output flash-partition.h file
+# To be used by both the C runtime and Make context
+#
+function gen_partition_file ()
+{
+	# Remove any old files
+	if [ -f "$TMPFILE" ]; then
+		rm -f "$TMPFILE"
+	fi
+	if [ -f "$OUTFILE" ]; then
+		rm -f "$OUTFILE"
+	fi
+	echo "/*" >$TMPFILE
+	echo " * Automatically generated by make u-boot: don't edit." >>$TMPFILE
+	echo " */" >> $TMPFILE
+
+	# Build the file based on our partition table arrays
+	for (( CNT=1; CNT<${#PAR_NAME[@]} + 1; CNT++ )); do
+		for field in "START" "SIZE"; do
+			# Make name upper case
+			tmp=$(echo ${PAR_NAME[$CNT]} | tr [:lower:] [:upper:])
+
+			str="#define CONFIG_FLASH_"$tmp"_"$field"		"
+			if [ $field == "START" ]; then
+				printf "%s0x%x\n" "$str" "${PAR_ADDR[$CNT]}" >>$TMPFILE
+			else
+				printf "%s0x%x\n" "$str" "${PAR_SIZE[$CNT]}" >>$TMPFILE
+			fi
+		done
+	done
+
+	# We are done, make the file final
+	mv -f $TMPFILE $OUTFILE
+}
+
+#
+# This function generates the MTDPARTS string
+# as per the required syntax.  Base on the partition
+# table arrays.
+#
+function gen_mtdparts_string ()
+{
+	case "${KERNELVER}" in
+		"2.4")	MTDPARTSNAME="physmap_auto";
+			;;
+
+		"2.6")	MTDPARTSNAME="physmap-flash-0"
+			;;
+
+		*)	echo Invalid Kernel version
+			;;
+	esac
+
+	MTDPARTS="$MTDPARTSNAME:"
+	for (( CNT=1; CNT<${#PAR_NAME[@]} + 1; CNT++ )); do
+		if [ $((${PAR_SIZE[$CNT]} % 0x100000)) -eq "0" ]; then
+			unit=M
+			size=$(( ${PAR_SIZE[$CNT]} / 0x100000 ))
+		else
+			unit=K
+			size=$(( ${PAR_SIZE[$CNT]} / 0x400 ))
+		fi
+
+		MTDPARTS=$MTDPARTS$size$unit"(${PAR_NAME[$CNT]})"
+		if [ $CNT -lt  ${#PAR_NAME[@]} ]; then
+			MTDPARTS=$MTDPARTS","
+		fi
+	done
+}
+
+#
+# This function is to contain all the
+# required file/text substitution code.
+#
+function sub_config_file ()
+{
+	# Construct our MTD parts
+	gen_mtdparts_string
+
+	NET_START=$(($ERAM_START + 8192))
+	NET_START=`printf "0x%x" $NET_START`
+
+	# Crude attempt to autodetect our IP address
+	[ "${CONFIG_SYSTEM_SERVERIP_ADDRESS}" == "AUTO" ] && \
+		CONFIG_SYSTEM_SERVERIP_ADDRESS="$( /sbin/ifconfig eth0 | egrep -o "inet addr:[0-9]+.[0-9]+.[0-9]+.[0-9]+" | cut -d ':' -f 2)"
+
+	[ "${USE_DHCP}" = "y" ] && DHCP_CMD=dhcp
+
+	# Substitutions on the template config file for board
+	sed -e "{s/\@mtdparts\@/$MTDPARTS/g
+			 s/\@mtdpartsname\@/$MTDPARTSNAME/g
+			 s/\@dhcp@/${DHCP_CMD}/g
+			 s/\@ethaddr@/${CONFIG_SYSTEM_MAC_ADDRESS}/g
+			 s/\@ipaddr@/${CONFIG_SYSTEM_IP_ADDRESS}/g
+			 s/\@serverip@/${CONFIG_SYSTEM_SERVERIP_ADDRESS}/g
+			 s/\@ksize\@/${PAR_SIZE[$IMAGE_PAR]}/g
+			 s/\@kstart\@/${PAR_ADDR[$IMAGE_PAR]}/g
+			 s/\@bsize\@/${PAR_SIZE[$BOOT_PAR]}/g
+			 s/\@bstart\@/${PAR_ADDR[$BOOT_PAR]}/g
+			 s/\@jffs2size\@/${PAR_SIZE[$JFFS2_PAR]}/g
+			 s/\@jffs2start\@/${PAR_ADDR[$JFFS2_PAR]}/g
+			 s/\@besize\@/${PAR_SIZE[$BOOTENV_PAR]}/g
+			 s/\@bestart\@/${PAR_ADDR[$BOOTENV_PAR]}/g
+			 s/\@cstart\@/$ERAM_START/g
+			 s/\@nstart\@/$NET_START/g
+			 s/\@spiflashdev\@/${SPI_FLASH_DEV}/g
+			 s/\@spiflashmode\@/${SPI_FLASH_MODE}/g \
+			}" < $UBOOT_SCRIPT_BOARD_TEMPLATE > $UBOOT_SCRIPT_BOARD
+
+	# Add substitution code - here
+}
+
+#
+# This function does the required
+# U-Boot board configuration prior to
+# building u-boot.
+#
+function uboot_config ()
+{
+
+	# Check if u-boot configuration for this vendor platform exist
+	grep ${UBOOT_VENDOR}-${UBOOT_PLATFORM}_config ${UBOOTDIR}/Makefile
+	  >> /dev/null || (echo "Error: U-boot configuration not found" && exit -1)
+
+	XPAR=${UBOOT_BOARD_DIR}/xparameters.h
+	MK=${UBOOT_BOARD_DIR}/config.mk
+
+	echo $XPAR $MK
+
+	if [ ! -f ${XPAR} -o ! -f ${MK} ]; then
+		echo "Error: New U-BOOT needs xparameters.h and config.mk files in vendor folder"
+		echo "Please run petalinux-copy-autoconfig script from hw project folder."
+		exit -1
+	fi
+
+	# then finally, configure u-boot appropriately
+	make -C u-boot ${UBOOT_VENDOR}-${UBOOT_PLATFORM}_config
+}
+
+
+
+#
+# MAIN ROUTINE
+#
+
+# Read config/.config file for FLASh partition definitions
+read_config_file
+
+# Sanity Partition table check
+check_partition_table
+
+# Generate FLASH partition table include file
+gen_partition_file
+
+# Configuration file substitution
+sub_config_file
+
+# Run U-Boot pre configuration
+uboot_config
+
+exit 0
+
+

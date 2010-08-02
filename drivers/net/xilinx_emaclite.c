@@ -25,6 +25,7 @@
 #include <common.h>
 #include <net.h>
 #include <config.h>
+#include <malloc.h>
 #include <asm/io.h>
 
 #undef DEBUG
@@ -79,7 +80,7 @@ static u8 emacaddr[ENET_ADDR_LENGTH] = { 0x00, 0x0a, 0x35, 0x00, 0x22, 0x01 };
 static u8 emacaddr[ENET_ADDR_LENGTH];
 #endif
 
-void xemaclite_alignedread (u32 * srcptr, void *destptr, unsigned bytecount)
+static void xemaclite_alignedread (u32 * srcptr, void *destptr, unsigned bytecount)
 {
 	unsigned int i;
 	u32 alignbuffer;
@@ -106,7 +107,7 @@ void xemaclite_alignedread (u32 * srcptr, void *destptr, unsigned bytecount)
 	}
 }
 
-void xemaclite_alignedwrite (void *srcptr, u32 destptr, unsigned bytecount)
+static void xemaclite_alignedwrite (void *srcptr, u32 destptr, unsigned bytecount)
 {
 	unsigned i;
 	u32 alignbuffer;
@@ -133,12 +134,12 @@ void xemaclite_alignedwrite (void *srcptr, u32 destptr, unsigned bytecount)
 	*to32ptr++ = alignbuffer;
 }
 
-void eth_halt (void)
+static void emaclite_halt(struct eth_device *dev)
 {
 	debug ("eth_halt\n");
 }
 
-int eth_init (bd_t * bis)
+static int emaclite_init(struct eth_device *dev, bd_t *bis)
 {
 	uchar enetaddr[6];
 
@@ -193,7 +194,7 @@ int eth_init (bd_t * bis)
 	return 0;
 }
 
-int xemaclite_txbufferavailable (xemaclite * instanceptr)
+static int xemaclite_txbufferavailable (xemaclite * instanceptr)
 {
 	u32 reg;
 	u32 txpingbusy;
@@ -215,8 +216,8 @@ int xemaclite_txbufferavailable (xemaclite * instanceptr)
 	return (!(txpingbusy && txpongbusy));
 }
 
-int eth_send (volatile void *ptr, int len) {
-
+static int emaclite_send (struct eth_device *dev, volatile void *ptr, int len)
+{
 	unsigned int reg;
 	unsigned int baseaddress;
 
@@ -292,7 +293,8 @@ int eth_send (volatile void *ptr, int len) {
 	return 0;
 }
 
-int eth_rx (void)
+
+static int emaclite_recv(struct eth_device *dev)
 {
 	unsigned int length;
 	unsigned int reg;
@@ -351,4 +353,28 @@ int eth_rx (void)
 	NetReceive ((uchar *) etherrxbuff, length);
 	return 1;
 
+}
+
+
+int xilinx_emaclite_initialize (bd_t *bis)
+{
+	struct eth_device *dev;
+
+	dev = malloc(sizeof(*dev));
+	if (dev == NULL)
+		hang();
+
+	memset(dev, 0, sizeof(*dev));
+	sprintf(dev->name, "Xilinx Emaclite");
+
+	dev->iobase = 0;
+	dev->priv = 0;
+	dev->init = emaclite_init;
+	dev->halt = emaclite_halt;
+	dev->send = emaclite_send;
+	dev->recv = emaclite_recv;
+
+	eth_register(dev);
+
+	return 0;
 }

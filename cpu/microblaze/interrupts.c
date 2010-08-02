@@ -46,9 +46,6 @@ int disable_interrupts (void)
 }
 
 #ifdef CONFIG_SYS_INTC_0
-#ifdef CONFIG_SYS_TIMER_0
-extern void timer_init (void);
-#endif
 #ifdef CONFIG_SYS_FSL_2
 extern void fsl_init2 (void);
 #endif
@@ -142,9 +139,6 @@ int interrupts_init (void)
 	}
 	/* initialize intc controller */
 	intc_init ();
-#ifdef CONFIG_SYS_TIMER_0
-	timer_init ();
-#endif
 #ifdef CONFIG_SYS_FSL_2
 	fsl_init2 ();
 #endif
@@ -154,8 +148,8 @@ int interrupts_init (void)
 
 void interrupt_handler (void)
 {
-	int irqs = (intc->isr & intc->ier);	/* find active interrupt */
-	int i = 1;
+	int irqs = intc->ivr;	/* find active interrupt */
+	int mask = 1;
 #ifdef DEBUG_INT
 	int value;
 	printf ("INTC isr %x, ier %x, iar %x, mer %x\n", intc->isr, intc->ier,
@@ -163,23 +157,17 @@ void interrupt_handler (void)
 	R14(value);
 	printf ("Interrupt handler on %x line, r14 %x\n", irqs, value);
 #endif
-	struct irq_action *act = vecs;
-	while (irqs) {
-		if (irqs & 1) {
+	struct irq_action *act = vecs + irqs;
+
+	intc->iar = mask << irqs;
+
 #ifdef DEBUG_INT
-			printf
-			    ("Jumping to interrupt handler rutine addr %x,count %x,arg %x\n",
-			     act->handler, act->count, act->arg);
+	printf
+	    ("Jumping to interrupt handler rutine addr %x,count %x,arg %x\n",
+	     act->handler, act->count, act->arg);
 #endif
-			act->handler (act->arg);
-			act->count++;
-			intc->iar = i;
-			return;
-		}
-		irqs >>= 1;
-		act++;
-		i <<= 1;
-	}
+	act->handler (act->arg);
+	act->count++;
 
 #ifdef DEBUG_INT
 	printf ("Dump INTC reg, isr %x, ier %x, iar %x, mer %x\n", intc->isr,

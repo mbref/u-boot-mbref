@@ -1,5 +1,5 @@
 #
-# (C) Copyright 2006
+# (C) Copyright 2000-2006
 # Wolfgang Denk, DENX Software Engineering, wd@denx.de.
 #
 # See file CREDITS for list of people who contributed to this
@@ -12,7 +12,7 @@
 #
 # This program is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.	See the
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
@@ -23,16 +23,9 @@
 
 include $(TOPDIR)/config.mk
 
-LIB	:= $(obj)libspi_flash.a
+LIB	= $(obj)libromfs.a
 
-COBJS-$(CONFIG_SPI_FLASH)	+= spi_flash.o
-COBJS-$(CONFIG_SPI_FLASH_ATMEL)	+= atmel.o
-COBJS-$(CONFIG_SPI_FLASH_MACRONIX)	+= macronix.o
-COBJS-$(CONFIG_SPI_FLASH_SPANSION)	+= spansion.o
-COBJS-$(CONFIG_SPI_FLASH_SST)	+= sst.o
-COBJS-$(CONFIG_SPI_FLASH_STMICRO)	+= stmicro.o
-COBJS-$(CONFIG_SPI_M95XXX) += eeprom_m95xxx.o
-COBJS-$(CONFIG_SPI_FLASH_WINBOND) += winbond.o
+COBJS-y += romfs.o
 
 COBJS	:= $(COBJS-y)
 SRCS	:= $(COBJS:.o=.c)
@@ -40,7 +33,8 @@ OBJS	:= $(addprefix $(obj),$(COBJS))
 
 all:	$(LIB)
 
-$(LIB): $(obj).depend $(OBJS)
+$(LIB):	$(obj).depend $(OBJS)
+	echo ahoj
 	$(AR) $(ARFLAGS) $@ $(OBJS)
 
 #########################################################################
