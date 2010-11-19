@@ -287,8 +287,11 @@ static int xps_ll_temac_phy_ctrl(struct eth_device *dev)
 		return 1;
 	}
 
-	/* Marwell 88e1111 id - ml50x */
-	if (i == 0x1410cc2) {
+	/*
+	 * Marwell 88e1111 id - ml50x, ml605
+	 * National DP83865 id - sp3adsp1800
+	 */
+	if (i == 0x1410cc2 || i == 0x20005c7a) {
 		result = xps_ll_temac_hostif_get(dev, 0, phy_addr, 5);
 		if ((result & 0x8000) == 0x8000) {
 			xps_ll_temac_indirect_set(dev, 0, EMMC, 0x80000000);
