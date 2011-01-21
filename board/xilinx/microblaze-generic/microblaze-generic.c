@@ -77,5 +77,8 @@ int board_eth_init(bd_t *bis)
 #ifdef CONFIG_XILINX_LL_TEMAC
 	ret |= xilinx_ll_temac_initialize(bis, XILINX_LLTEMAC_BASEADDR);
 #endif
+#ifdef CONFIG_S2IMAC
+	ret |= s2imac_initialize(bis, S2IMAC_BASEADDR);
+#endif
 	return ret;
 }
