@@ -91,7 +91,7 @@ int uec_standard_init(bd_t *bis);
 int uli526x_initialize(bd_t *bis);
 int xilinx_emaclite_initialize (bd_t *bis, int base_addr);
 int xilinx_ll_temac_initialize(bd_t *bis, int base_addr);
-int s2imac_initialize(bd_t *bis);
+int s2imac_initialize(bd_t *bis, int base_addr);
 int sh_eth_initialize(bd_t *bis);
 int dm9000_initialize(bd_t *bis);
 

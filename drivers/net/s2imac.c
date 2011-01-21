@@ -366,7 +366,7 @@ static int s2imac_recv (struct eth_device *dev)
 	return 0;
 }
 
-int s2imac_initialize (bd_t * bis)
+int s2imac_initialize (bd_t * bis, int base_addr)
 {
 	struct eth_device *dev;
 
@@ -376,7 +376,7 @@ int s2imac_initialize (bd_t * bis)
 
 	sprintf (dev->name, "S2IMAC");
 
-	dev->iobase = S2IMAC_BASEADDR;
+	dev->iobase = base_addr;
 
 	/* transmit and receive packet buffers */
 	gige_txbuf = (volatile u32 *)TXBUF;
