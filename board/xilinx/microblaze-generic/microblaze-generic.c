@@ -82,4 +82,7 @@ int board_eth_init(bd_t *bis)
 #ifdef CONFIG_XILINX_LL_TEMAC
 	return xilinx_ll_temac_initialize(bis);
 #endif
+#ifdef CONFIG_S2IMAC
+	return s2imac_initialize(bis);
+#endif
 }
