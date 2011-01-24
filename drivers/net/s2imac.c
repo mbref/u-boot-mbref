@@ -24,7 +24,14 @@
 #include <asm/processor.h>
 #include <asm/io.h>
 
+/*
+ * TODO: The receiver and transmitter in current S2IMAC implementation
+ *       can not always be turned on. So we leave it in on mode and disable ETH_HALTING.
+ */
 #undef ETH_HALTING
+
+/* This driver will works primary with jumbo frames in Gigabit Ethernet. */
+#define ETH_JUMBO
 
 /* MDIO register basis */
 #define MDIO_BASE		(dev->iobase + 0x1000)
@@ -61,14 +68,17 @@
 #define GCSR_CONNECTED		0x00000001
 #define GCSR_RST_PHY		0x00000004
 
+#ifdef ETH_JUMBO
+#define ETHER_MTU		(16 * 1024)	/* 16kByte (really big) */
+#else
 #define ETHER_MTU		1520
+#endif
 
-/* FIXME: use ETHER_MTU ??? */
-static unsigned char rx_buffer[0x4000] __attribute ((aligned (32)));
+static unsigned char rx_buffer[ETHER_MTU] __attribute ((aligned (32)));
 volatile u32 *gige_txbuf;
 volatile u32 *gige_rxbuf;
 
-// ---- Read Ethernet PHY register ---------------------------------------------
+/* read Ethernet PHY register */
 u16 get_phy_reg (struct eth_device *dev, int phy_addr, int reg_addr)
 {
 	u32 ret;
@@ -95,8 +105,7 @@ u16 get_phy_reg (struct eth_device *dev, int phy_addr, int reg_addr)
 	return (unsigned short)(ret & 0xFFFF);
 }
 
-// ---- Write Ethernet PHY register --------------------------------------------
-
+/* write Ethernet PHY register */
 void set_phy_reg (struct eth_device *dev, int phy_addr, int reg_addr,
 		  int reg_data)
 {
@@ -222,9 +231,16 @@ static int s2imac_phy_ctrl (struct eth_device *dev)
 		link = 1;
 
 		out_be32 ((u32 *) EMMC, cfg);
-		/* Enable jumbo frames for Tx and Rx */
+
+#ifdef ETH_JUMBO
+		/* Enable with jumbo frames for Tx and Rx */
 		out_be32 ((u32 *) TC, rxtx | 0x40000000);
 		out_be32 ((u32 *) RCW1, rxtx | 0x40000000);
+#else
+		/* Enable w/o jumbo frames for Tx and Rx */
+		out_be32 ((u32 *) TC, rxtx);
+		out_be32 ((u32 *) RCW1, rxtx);
+#endif
 
 		help = in_be32 ((u32 *) GCSR);
 		help |= GCSR_CONNECTED;
@@ -266,14 +282,12 @@ static void s2imac_halt (struct eth_device *dev)
 {
 	link = 0;
 
-	/*
-	 * TODO: The receiver and transmitter in current S2IMAC
-	 *       implementation can not always be turned on.
-	 */
-	/* Disable Receiver
-	   out_be32((u32 *)RCW1, 0x00000000); */
-	/* Disable Transmitter
-	   out_be32((u32 *)TC, 0x00000000); */
+#ifdef ETH_HALTING
+	/* Disable Receiver */
+	   out_be32((u32 *)RCW1, 0x00000000);
+	/* Disable Transmitter */
+	   out_be32((u32 *)TC, 0x00000000);
+#endif
 }
 
 static int s2imac_init (struct eth_device *dev, bd_t * bis)
