@@ -297,11 +297,17 @@ static int s2imac_init (struct eth_device *dev, bd_t * bis)
 	 *   - PHY MDC frequency (max 2.5 MHz according to IEEE Std 802.3-2002,
 	 *     BCM5461A supports 12.5 MHz)
 	 */
-	out_be32 ((u32 *) CLK_FREQ, 62500000);
-	out_be32 ((u32 *) TOCNT_DIV, (62500000 / 1000) - 1);
-	out_be32 ((u32 *) MC, MDIO_ENABLE_MASK | (MDIO_CLOCK_DIV_MASK
-						  & ((62500000 / (2 * 2500000))
-						     - 1)));
+#ifdef CONFIG_S2IMAC_CLOCK_FREQ
+#define MDIO_CLOCK	(2500000)	/* 2.5 MHz */
+#define MDIO_CLOCK_DIV	(MDIO_CLOCK_DIV_MASK & \
+			((CONFIG_S2IMAC_CLOCK_FREQ / (2 * MDIO_CLOCK)) - 1))
+
+	out_be32 ((u32 *) CLK_FREQ, CONFIG_S2IMAC_CLOCK_FREQ);
+	out_be32 ((u32 *) TOCNT_DIV, (CONFIG_S2IMAC_CLOCK_FREQ / 1000) - 1);
+	out_be32 ((u32 *) MC, MDIO_ENABLE_MASK | MDIO_CLOCK_DIV);
+#else
+#error MISSING CONFIG_S2IMAC_CLOCK_FREQ
+#endif
 
 	/* set up MAC address */
 	s2imac_addr_setup (dev);
