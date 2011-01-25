@@ -49,8 +49,16 @@
 #define UAW1			(dev->iobase + ((0x384) << 2))
 #define AFM			(dev->iobase + ((0x390) << 2))
 
-#define MDIO_ENABLE_MASK	0x40
-#define MDIO_CLOCK_DIV_MASK	0x3F
+#define MDIO_RXTX_JUMBO		(1 << 30)
+#define MDIO_RXTX_ENABLE	(1 << 28)
+#define MDIO_RXTX_HALFDUPLEX	(1 << 26)
+
+#define MDIO_EMMC_10BASET	(0)
+#define MDIO_EMMC_100BASET	(1 << 30)
+#define MDIO_EMMC_1000BASET	(1 << 31)
+
+#define MDIO_ENABLE_MASK	(1 << 6)
+#define MDIO_CLOCK_DIV_MASK	((1 << 6) - 1)
 
 /* direct registers definition */
 #define GCSR			(dev->iobase + 0xC000)
@@ -65,8 +73,12 @@
 #define MAC_RX_HIGH		(dev->iobase + 0xC090)
 #define MAC_RX_LOW		(dev->iobase + 0xC094)
 
-#define GCSR_CONNECTED		0x00000001
-#define GCSR_RST_PHY		0x00000004
+#define GCSR_CONNECTED		(1)
+#define GCSR_RST_PHY		(1 << 2)
+
+#define MDIO_ACC_ENA_NBLOCK	(1 << 31)
+#define MDIO_ACC_NBLOCK		(1 << 16)
+#define MDIO_ACC_MIIRDY		(1 << 17)
 
 #ifdef ETH_JUMBO
 #define ETHER_MTU		(16 * 1024)	/* 16kByte (really big) */
@@ -83,16 +95,21 @@ u16 get_phy_reg (struct eth_device *dev, int phy_addr, int reg_addr)
 {
 	u32 ret;
 
-	if (in_be32 ((u32 *) MDIO_ACC) & (1 << 16)) {
+	if (in_be32 ((u32 *) MDIO_ACC) & MDIO_ACC_NBLOCK) {
 		/*
 		 * Non-blocking mode
 		 * (only this software thread waits for MDIO access)
 		 */
 		ret = in_be32 ((u32 *) (MDIO_BASE + ((phy_addr & 0x1F) << 7)
 					+ ((reg_addr & 0x1F) << 2)));
-		while (!(in_be32 ((u32 *) MDIO_ACC) & (1 << 17))) {
-		};
-		ret = in_be32 ((u32 *) MDIO_ACC);
+
+		/*
+		 * Wait here polling, until the value is ready to be read.
+		 * Should we avoid endless loop due to hardware?
+		 */
+		do {
+			ret = in_be32 ((u32 *) MDIO_ACC);
+		} while (!(ret & MDIO_ACC_MIIRDY));
 	} else {
 		/*
 		 * Blocking mode
@@ -109,7 +126,9 @@ u16 get_phy_reg (struct eth_device *dev, int phy_addr, int reg_addr)
 void set_phy_reg (struct eth_device *dev, int phy_addr, int reg_addr,
 		  int reg_data)
 {
-	if (in_be32 ((u32 *) MDIO_ACC) & (1 << 16)) {
+	u32 ret;
+
+	if (in_be32 ((u32 *) MDIO_ACC) & MDIO_ACC_NBLOCK) {
 		/*
 		 * Non-blocking mode
 		 * (only this software thread waits for MDIO access)
@@ -117,8 +136,14 @@ void set_phy_reg (struct eth_device *dev, int phy_addr, int reg_addr,
 		out_be32 ((u32 *) (MDIO_BASE + ((phy_addr & 0x1F) << 7)
 				   + ((reg_addr & 0x1F) << 2)), reg_data);
 
-		while (!(in_be32 ((u32 *) MDIO_ACC) & (1 << 17))) {
-		};
+
+		/*
+		 * Wait here polling, until the value is ready written.
+		 * Should we avoid endless loop due to hardware?
+		 */
+		do {
+			ret = in_be32 ((u32 *) MDIO_ACC);
+		} while (!(ret & MDIO_ACC_MIIRDY));
 	} else {
 		/*
 		 * Blocking mode
@@ -188,38 +213,38 @@ static int s2imac_phy_ctrl (struct eth_device *dev)
 		switch ((get_phy_reg (dev, phy_addr, 17)) & 0xE000) {
 		case 0x0000:
 			/* 10BASE-T, half-duplex */
-			cfg = 0x00000000;
-			rxtx = 0x14000000;
+			cfg = MDIO_EMMC_10BASET;
+			rxtx = (MDIO_RXTX_ENABLE | MDIO_RXTX_HALFDUPLEX);
 			puts ("10BASE-T/HD\n");
 			break;
 		case 0x2000:
 			/* 10BASE-T, full-duplex */
-			cfg = 0x00000000;
-			rxtx = 0x10000000;
+			cfg = MDIO_EMMC_10BASET;
+			rxtx = MDIO_RXTX_ENABLE;
 			puts ("10BASE-T/FD\n");
 			break;
 		case 0x4000:
 			/* 100BASE-TX, half-duplex */
-			cfg = 0x40000000;
-			rxtx = 0x14000000;
+			cfg = MDIO_EMMC_100BASET;
+			rxtx = (MDIO_RXTX_ENABLE | MDIO_RXTX_HALFDUPLEX);
 			puts ("100BASE-T/HD\n");
 			break;
 		case 0x6000:
 			/* 100BASE-TX, full-duplex */
-			cfg = 0x40000000;
-			rxtx = 0x10000000;
+			cfg = MDIO_EMMC_100BASET;
+			rxtx = MDIO_RXTX_ENABLE;
 			puts ("100BASE-T/FD\n");
 			break;
 		case 0x8000:
 			/* 1000BASE-T, half-duplex */
-			cfg = 0x80000000;
-			rxtx = 0x14000000;
+			cfg = MDIO_EMMC_1000BASET;
+			rxtx = (MDIO_RXTX_ENABLE | MDIO_RXTX_HALFDUPLEX);
 			puts ("1000BASE-T/HD\n");
 			break;
 		case 0xA000:
 			/* 1000BASE-T, full-duplex */
-			cfg = 0x80000000;
-			rxtx = 0x10000000;
+			cfg = MDIO_EMMC_1000BASET;
+			rxtx = MDIO_RXTX_ENABLE;
 			puts ("1000BASE-T/FD\n");
 			break;
 		default:
@@ -234,8 +259,8 @@ static int s2imac_phy_ctrl (struct eth_device *dev)
 
 #ifdef ETH_JUMBO
 		/* Enable with jumbo frames for Tx and Rx */
-		out_be32 ((u32 *) TC, rxtx | 0x40000000);
-		out_be32 ((u32 *) RCW1, rxtx | 0x40000000);
+		out_be32 ((u32 *) TC, rxtx | MDIO_RXTX_JUMBO);
+		out_be32 ((u32 *) RCW1, rxtx | MDIO_RXTX_JUMBO);
 #else
 		/* Enable w/o jumbo frames for Tx and Rx */
 		out_be32 ((u32 *) TC, rxtx);
@@ -284,14 +309,15 @@ static void s2imac_halt (struct eth_device *dev)
 
 #ifdef ETH_HALTING
 	/* Disable Receiver */
-	   out_be32((u32 *)RCW1, 0x00000000);
+	   out_be32((u32 *)RCW1, 0);
 	/* Disable Transmitter */
-	   out_be32((u32 *)TC, 0x00000000);
+	   out_be32((u32 *)TC, 0);
 #endif
 }
 
 static int s2imac_init (struct eth_device *dev, bd_t * bis)
 {
+	u32 reg;
 	static int first = 1;
 
 	if (!first)
@@ -299,11 +325,12 @@ static int s2imac_init (struct eth_device *dev, bd_t * bis)
 	first = 0;
 
 	/* non-blocking PHY access enabled (if supported) */
-	out_be32 ((u32 *) MDIO_ACC, 0x80000000);
+	out_be32 ((u32 *) MDIO_ACC, MDIO_ACC_ENA_NBLOCK);
 
 	/* wait for end of PHY reset */
-	while (in_be32 ((u32 *) GCSR) & GCSR_RST_PHY) {
-	};
+	do {
+		reg = in_be32 ((u32 *) GCSR);
+	} while (reg & GCSR_RST_PHY);
 
 	/*
 	 * Setup timers and clock generators
@@ -327,11 +354,11 @@ static int s2imac_init (struct eth_device *dev, bd_t * bis)
 	s2imac_addr_setup (dev);
 
 	/* Promiscuous mode disable */
-	out_be32 ((u32 *) AFM, 0x00000000);
+	out_be32 ((u32 *) AFM, 0);
 	/* Enable Receiver */
-	out_be32 ((u32 *) RCW1, 0x10000000);
+	out_be32 ((u32 *) RCW1, MDIO_RXTX_ENABLE);
 	/* Enable Transmitter */
-	out_be32 ((u32 *) TC, 0x10000000);
+	out_be32 ((u32 *) TC, MDIO_RXTX_ENABLE);
 
 	printf ("%s: Sensor to Image GigE Vision Ether MAC #%d at 0x%08X.\n",
 		dev->name, 0, dev->iobase);
