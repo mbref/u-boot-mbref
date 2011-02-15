@@ -94,6 +94,7 @@ int smc911x_initialize(u8 dev_num, int base_addr);
 int tsi108_eth_initialize(bd_t *bis);
 int uec_standard_init(bd_t *bis);
 int uli526x_initialize(bd_t *bis);
+int xilinx_axiemac_initialize (bd_t *bis, int base_addr, int dma_addr);
 int xilinx_emaclite_initialize (bd_t *bis, int base_addr);
 int xilinx_ll_temac_initialize(bd_t *bis, int base_addr);
 
