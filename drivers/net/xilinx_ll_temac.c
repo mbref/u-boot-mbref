@@ -25,10 +25,36 @@
 #include <asm/processor.h>
 #include <asm/io.h>
 
+/* Backwards compatability to older xparameters.h files */
+#ifndef XILINX_LLTEMAC_SDMA_USE_DCR
+#define XILINX_LLTEMAC_SDMA_USE_DCR 0
+#endif
+
+# if XILINX_LLTEMAC_SDMA_USE_DCR==1
+static void mtdcr_local(u32 reg, u32 val) {
+	mtdcr(0x00, reg);
+	mtdcr(0x01, val);
+}
+
+static u32 mfdcr_local(u32 reg) {
+	u32 val;
+	mtdcr(0x00, reg);
+	val = mfdcr(0x01);
+	return val;
+}
+#endif
+
 #ifdef XILINX_LLTEMAC_FIFO_BASEADDR
 # define FIFO_MODE	1
 #elif XILINX_LLTEMAC_SDMA_CTRL_BASEADDR
 # define SDMA_MODE	1
+# if XILINX_LLTEMAC_SDMA_USE_DCR==1
+#define sdma_out_be32(addr,val) mtdcr_local((u32) (addr),(val))
+#define sdma_in_be32(addr) mfdcr_local((u32) (addr))
+# else
+#define sdma_out_be32(addr,val) out_be32((addr),(val))
+#define sdma_in_be32(addr) in_be32((addr))
+# endif
 #else
 # error Xilinx LL Temac: Unsupported mode - Please setup SDMA or FIFO mode
 #endif
@@ -36,6 +62,28 @@
 #undef ETH_HALTING
 
 #ifdef SDMA_MODE
+# if XILINX_LLTEMAC_SDMA_USE_DCR==1
+/* XPS_LL_TEMAC SDMA registers definition */
+# define TX_NXTDESC_PTR		(((struct ll_priv *)(dev->priv))->sdma + 0x00)
+# define TX_CURBUF_ADDR		(((struct ll_priv *)(dev->priv))->sdma + 0x01)
+# define TX_CURBUF_LENGTH	(((struct ll_priv *)(dev->priv))->sdma + 0x02)
+# define TX_CURDESC_PTR		(((struct ll_priv *)(dev->priv))->sdma + 0x03)
+# define TX_TAILDESC_PTR	(((struct ll_priv *)(dev->priv))->sdma + 0x04)
+# define TX_CHNL_CTRL		(((struct ll_priv *)(dev->priv))->sdma + 0x05)
+# define TX_IRQ_REG		(((struct ll_priv *)(dev->priv))->sdma + 0x06)
+# define TX_CHNL_STS		(((struct ll_priv *)(dev->priv))->sdma + 0x07)
+
+# define RX_NXTDESC_PTR		(((struct ll_priv *)(dev->priv))->sdma + 0x08)
+# define RX_CURBUF_ADDR		(((struct ll_priv *)(dev->priv))->sdma + 0x09)
+# define RX_CURBUF_LENGTH	(((struct ll_priv *)(dev->priv))->sdma + 0x0a)
+# define RX_CURDESC_PTR		(((struct ll_priv *)(dev->priv))->sdma + 0x0b)
+# define RX_TAILDESC_PTR	(((struct ll_priv *)(dev->priv))->sdma + 0x0c)
+# define RX_CHNL_CTRL		(((struct ll_priv *)(dev->priv))->sdma + 0x0d)
+# define RX_IRQ_REG		(((struct ll_priv *)(dev->priv))->sdma + 0x0e)
+# define RX_CHNL_STS		(((struct ll_priv *)(dev->priv))->sdma + 0x0f)
+
+# define DMA_CONTROL_REG	(((struct ll_priv *)(dev->priv))->sdma + 0x10)
+#else
 /* XPS_LL_TEMAC SDMA registers definition */
 # define TX_NXTDESC_PTR		(((struct ll_priv *)(dev->priv))->sdma + 0x00)
 # define TX_CURBUF_ADDR		(((struct ll_priv *)(dev->priv))->sdma + 0x04)
@@ -56,6 +104,7 @@
 # define RX_CHNL_STS		(((struct ll_priv *)(dev->priv))->sdma + 0x3c)
 
 # define DMA_CONTROL_REG	(((struct ll_priv *)(dev->priv))->sdma + 0x40)
+#endif
 #endif
 
 /* XPS_LL_TEMAC direct registers definition */
@@ -116,6 +165,39 @@
 # define BDSTAT_CHANBUSY_MASK		0x02
 # define BDSTAT_CHANRESET_MASK		0x01
 
+# define CHNL_STS_ERROR_MASK		0x80
+
+#define XLLDMA_CR_IRQ_ALL_EN_MASK       0x00000087 /**< All interrupt enable
+                                                        bits */
+
+#define XLLDMA_IRQ_ALL_ERR_MASK          0x0000001C /**< All error interrupt */
+#define XLLDMA_IRQ_ALL_MASK              0x0000001F /**< All interrupt bits */
+
+#define XLLDMA_DMACR_TX_PAUSE_MASK             0x20000000 /**< Pause TX channel
+                                                                  */
+#define XLLDMA_DMACR_RX_PAUSE_MASK             0x10000000 /**< Pause RX channel
+                                                                  */
+#define XLLDMA_DMACR_PLB_ERR_DIS_MASK          0x00000020 /**< Disable PLB
+                                                               error detection
+                                                                  */
+#define XLLDMA_DMACR_RX_OVERFLOW_ERR_DIS_MASK  0x00000010 /**< Disable error
+                                                               when 2 or 4 bit
+                                                               coalesce counter
+                                                               overflows */
+#define XLLDMA_DMACR_TX_OVERFLOW_ERR_DIS_MASK  0x00000008 /**< Disable error
+                                                               when 2 or 4 bit
+                                                               coalesce counter
+                                                               overflows */
+#define XLLDMA_DMACR_TAIL_PTR_EN_MASK          0x00000004 /**< Enable use of
+                                                               tail pointer
+                                                               register */
+#define XLLDMA_DMACR_EN_ARB_HOLD_MASK          0x00000002 /**< Enable
+                                                               arbitration
+                                                               hold */
+#define XLLDMA_DMACR_SW_RESET_MASK             0x00000001 /**< Assert Software
+                                                               reset for both
+                                                               channels */
+
 /* SDMA Buffer Descriptor */
 
 typedef struct cdmac_bd_t {
@@ -155,9 +237,11 @@ ll_fifo_s *ll_fifo = (ll_fifo_s *) (XILINX_LLTEMAC_FIFO_BASEADDR);
 
 static unsigned char tx_buffer[ETHER_MTU] __attribute((aligned(32)));
 static unsigned char rx_buffer[ETHER_MTU] __attribute((aligned(32)));
+static unsigned char rx_buffer2[ETHER_MTU] __attribute((aligned(32)));
 
 struct ll_priv {
 	unsigned int sdma;
+	unsigned int use_dcr;
 };
 
 #ifdef DEBUG
@@ -283,6 +367,45 @@ static int xps_ll_temac_phy_ctrl(struct eth_device *dev)
 }
 
 #ifdef SDMA_MODE
+static inline int xps_ll_temac_dma_error(struct eth_device *dev)
+{
+	int err;
+
+	/* Check for TX and RX channel errrors.  */
+	err = sdma_in_be32((u32 *) TX_CHNL_STS) & CHNL_STS_ERROR_MASK;
+	err |= sdma_in_be32((u32 *) RX_CHNL_STS) & CHNL_STS_ERROR_MASK;
+	return err;
+}
+
+static void xps_ll_temac_reset_dma(struct eth_device *dev)
+{
+	u32 r;
+
+	/* Soft reset the DMA.  */
+	sdma_out_be32((u32 *)DMA_CONTROL_REG, 0x00000001);
+	while(sdma_in_be32((u32 *)DMA_CONTROL_REG) & 1)
+		;
+
+	/* Now clear the interrupts.  */
+	r = sdma_in_be32((u32 *) TX_CHNL_CTRL);
+	r &= ~XLLDMA_CR_IRQ_ALL_EN_MASK;
+	sdma_out_be32((u32 *) TX_CHNL_CTRL, r);
+
+	r = sdma_in_be32((u32 *) RX_CHNL_CTRL);
+	r &= ~XLLDMA_CR_IRQ_ALL_EN_MASK;
+	sdma_out_be32((u32 *) RX_CHNL_CTRL, r);
+
+	/* Now ACK pending IRQs.  */
+	sdma_out_be32((u32 *) TX_IRQ_REG, XLLDMA_IRQ_ALL_MASK);
+	sdma_out_be32((u32 *) RX_IRQ_REG, XLLDMA_IRQ_ALL_MASK);
+
+	/* Set tail-ptr mode, disable errors for both channels.  */
+	sdma_out_be32((u32 *) DMA_CONTROL_REG,
+			XLLDMA_DMACR_TAIL_PTR_EN_MASK |
+			XLLDMA_DMACR_RX_OVERFLOW_ERR_DIS_MASK |
+			XLLDMA_DMACR_TX_OVERFLOW_ERR_DIS_MASK);
+}
+
 /* bd init */
 static void xps_ll_temac_bd_init(struct eth_device *dev)
 {
@@ -294,16 +417,17 @@ static void xps_ll_temac_bd_init(struct eth_device *dev)
 	rx_bd.next_p = &rx_bd;
 	rx_bd.buf_len = ETHER_MTU;
 	flush_cache((u32)&rx_bd, sizeof(cdmac_bd));
+	flush_cache ((u32)rx_bd.phys_buf_p, ETHER_MTU);
 
-	out_be32((u32 *)RX_CURDESC_PTR, (u32)&rx_bd);
-	out_be32((u32 *)RX_TAILDESC_PTR, (u32)&rx_bd);
-	out_be32((u32 *)RX_NXTDESC_PTR, (u32)&rx_bd); /* setup first fd */
+	sdma_out_be32((u32 *)RX_CURDESC_PTR, (u32)&rx_bd);
+	sdma_out_be32((u32 *)RX_TAILDESC_PTR, (u32)&rx_bd);
+	sdma_out_be32((u32 *)RX_NXTDESC_PTR, (u32)&rx_bd); /* setup first fd */
 
 	tx_bd.phys_buf_p = &tx_buffer[0];
 	tx_bd.next_p = &tx_bd;
 
 	flush_cache((u32)&tx_bd, sizeof(cdmac_bd));
-	out_be32((u32 *)TX_CURDESC_PTR, (u32)&tx_bd);
+	sdma_out_be32((u32 *)TX_CURDESC_PTR, (u32)&tx_bd);
 }
 
 static int xps_ll_temac_send_sdma(struct eth_device *dev,
@@ -311,6 +435,11 @@ static int xps_ll_temac_send_sdma(struct eth_device *dev,
 {
 	if( xps_ll_temac_phy_ctrl(dev) == 0)
 		return 0;
+
+	if (xps_ll_temac_dma_error(dev)) {
+		xps_ll_temac_reset_dma(dev);
+		xps_ll_temac_bd_init(dev);
+	}
 
 	memcpy (tx_buffer, buffer, length);
 	flush_cache ((u32)tx_buffer, length);
@@ -320,8 +449,8 @@ static int xps_ll_temac_send_sdma(struct eth_device *dev,
 	tx_bd.buf_len = length;
 	flush_cache ((u32)&tx_bd, sizeof(cdmac_bd));
 
-	out_be32((u32 *)TX_CURDESC_PTR, (u32)&tx_bd);
-	out_be32((u32 *)TX_TAILDESC_PTR, (u32)&tx_bd); /* DMA start */
+	sdma_out_be32((u32 *)TX_CURDESC_PTR, (u32)&tx_bd);
+	sdma_out_be32((u32 *)TX_TAILDESC_PTR, (u32)&tx_bd); /* DMA start */
 
 	do {
 		flush_cache ((u32)&tx_bd, sizeof(cdmac_bd));
@@ -335,13 +464,27 @@ static int xps_ll_temac_recv_sdma(struct eth_device *dev)
 {
 	int length;
 
+	if (xps_ll_temac_dma_error(dev)) {
+		xps_ll_temac_reset_dma(dev);
+		xps_ll_temac_bd_init(dev);
+	}
+
 	flush_cache ((u32)&rx_bd, sizeof(cdmac_bd));
 
 	if(!(rx_bd.stat & BDSTAT_COMPLETED_MASK)) {
 		return 0;
 	}
 
+	/* Read out the packet info and start the DMA
+	   onto the second buffer to enable the ethernet rx
+	   path to run in parallel with sw processing
+	   packets.  */
 	length = rx_bd.app5 & 0x3FFF;
+	if(length > 0) {
+		NetReceive(rx_bd.phys_buf_p, length);
+	}
+
+	/* flip the buffer and re-enable the DMA.  */
 	flush_cache ((u32)rx_bd.phys_buf_p, length);
 
 	rx_bd.buf_len = ETHER_MTU;
@@ -349,11 +492,7 @@ static int xps_ll_temac_recv_sdma(struct eth_device *dev)
 	rx_bd.app5 = 0;
 
 	flush_cache ((u32)&rx_bd, sizeof(cdmac_bd));
-	out_be32((u32 *)RX_TAILDESC_PTR, (u32)&rx_bd);
-
-	if(length > 0) {
-		NetReceive(rx_bd.phys_buf_p, length);
-	}
+	sdma_out_be32((u32 *)RX_TAILDESC_PTR, (u32)&rx_bd);
 
 	return length;
 }
@@ -427,6 +566,7 @@ static int xps_ll_temac_addr_setup(struct eth_device *dev)
 static int xps_ll_temac_init(struct eth_device *dev, bd_t *bis)
 {
 #ifdef SDMA_MODE
+	xps_ll_temac_reset_dma(dev);
 	xps_ll_temac_bd_init(dev);
 #endif
 #ifdef FIFO_MODE
@@ -459,8 +599,8 @@ static void xps_ll_temac_halt(struct eth_device *dev)
 	xps_ll_temac_indirect_set(dev, 0, TC, 0x00000000);
 
 #ifdef SDMA_MODE
-	out_be32((u32 *)DMA_CONTROL_REG, 0x00000001);
-	while(in_be32((u32 *)DMA_CONTROL_REG) & 1);
+	sdma_out_be32((u32 *)DMA_CONTROL_REG, 0x00000001);
+	while(sdma_in_be32((u32 *)DMA_CONTROL_REG) & 1);
 #endif
 #ifdef FIFO_MODE
 	/* reset fifos */
@@ -541,6 +681,7 @@ int xilinx_ll_temac_initialize (bd_t *bis)
 	dev->iobase = XILINX_LLTEMAC_BASEADDR;
 	((struct ll_priv *)(dev->priv))->sdma =
 					XILINX_LLTEMAC_SDMA_CTRL_BASEADDR;
+	((struct ll_priv *)(dev->priv))->use_dcr = XILINX_LLTEMAC_SDMA_USE_DCR;
 
 	dev->init = ll_temac_init;
 	dev->halt = ll_temac_halt;

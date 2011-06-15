@@ -118,7 +118,6 @@ static void xemaclite_alignedwrite (void *srcptr, u32 destptr, unsigned bytecoun
 
 	from32ptr = (u32 *) srcptr;
 	while (bytecount > 3) {
-
 		*to32ptr++ = *from32ptr++;
 		bytecount -= 4;
 	}
@@ -323,7 +322,7 @@ static int emaclite_recv(struct eth_device *dev)
 #endif
 	}
 	/* Get the length of the frame that arrived */
-	switch(((in_be32 (baseaddress + XEL_RXBUFF_OFFSET + 0xC)) &
+	switch(((ntohl(in_be32 (baseaddress + XEL_RXBUFF_OFFSET + 0xC))) &
 			0xFFFF0000 ) >> 16) {
 		case 0x806:
 			length = 42 + 20; /* FIXME size of ARP */
@@ -331,7 +330,7 @@ static int emaclite_recv(struct eth_device *dev)
 			break;
 		case 0x800:
 			length = 14 + 14 +
-			(((in_be32 (baseaddress + XEL_RXBUFF_OFFSET + 0x10)) &
+			(((ntohl(in_be32 (baseaddress + XEL_RXBUFF_OFFSET + 0x10))) &
 			0xFFFF0000) >> 16); /* FIXME size of IP packet */
 			debug ("IP Packet\n");
 			break;
@@ -365,7 +364,7 @@ int xilinx_emaclite_initialize (bd_t *bis)
 		hang();
 
 	memset(dev, 0, sizeof(*dev));
-	sprintf(dev->name, "Xilinx Emaclite");
+	sprintf(dev->name, "Xilinx_Emaclite");
 
 	dev->iobase = 0;
 	dev->priv = 0;

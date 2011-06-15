@@ -96,6 +96,7 @@ typedef int (init_fnc_t) (void);
 init_fnc_t *init_sequence[] = {
 	env_init,
 	serial_init,
+	console_init_f,
 #ifdef CONFIG_SYS_GPIO_0
 	gpio_init,
 #endif
@@ -178,6 +179,12 @@ void board_init (void)
 
 	/* Initialize stdio devices */
 	stdio_init ();
+
+	/* Initialize the jump table for applications */
+	jumptable_init ();
+
+	/* Initialize the console (after the relocation and devices init) */
+	console_init_r ();
 
 	if ((s = getenv ("loadaddr")) != NULL) {
 		load_addr = simple_strtoul (s, NULL, 16);

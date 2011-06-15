@@ -73,7 +73,7 @@ static int __def_eth_init(bd_t *bis)
 	return -1;
 }
 int cpu_eth_init(bd_t *bis) __attribute__((weak, alias("__def_eth_init")));
-//int board_eth_init(bd_t *bis) __attribute__((weak, alias("__def_eth_init")));
+int board_eth_init(bd_t *bis) __attribute__((weak, alias("__def_eth_init")));
 extern int board_eth_init(bd_t *bis);
 
 extern int mv6436x_eth_initialize(bd_t *);

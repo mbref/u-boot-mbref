@@ -4,6 +4,7 @@
  * Copyright (C) 2008 Atmel Corporation
  */
 
+#define DEBUG 1
 #include <common.h>
 #include <malloc.h>
 #include <spi.h>
@@ -123,6 +124,9 @@ struct spi_flash *spi_flash_probe(unsigned int bus, unsigned int cs,
 	debug("SF: Got idcode %02x %02x %02x %02x %02x\n", idcode[0],
 			idcode[1], idcode[2], idcode[3], idcode[4]);
 
+#ifdef CONFIG_SPI_FLASH_PLNX
+	flash = spi_flash_probe_plnx(spi, idcode);
+#else
 	switch (idcode[0]) {
 #ifdef CONFIG_SPI_FLASH_SPANSION
 	case 0x01:
@@ -159,6 +163,7 @@ struct spi_flash *spi_flash_probe(unsigned int bus, unsigned int cs,
 		flash = NULL;
 		break;
 	}
+#endif
 
 	if (!flash)
 		goto err_manufacturer_probe;

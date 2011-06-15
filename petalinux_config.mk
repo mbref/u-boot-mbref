@@ -39,7 +39,17 @@
 #UBOOT_PLATFORM=$(shell echo $(CONFIG_PRODUCT) | tr '[\.\/\+A-Z]' '[___a-z]')
 # For now, we force petalogix/microblaze-auto combination for u-boot
 UBOOT_VENDOR=petalogix
+ifdef CONFIG_MICROBLAZE
 UBOOT_PLATFORM=microblaze-auto
+endif
+ifdef CONFIG_PPC32
+  ifdef CONFIG_40x
+    UBOOT_PLATFORM=ppc405-auto
+  endif
+  ifdef CONFIG_44x
+    UBOOT_PLATFORM=ppc440-auto
+  endif
+endif
 
 UBOOTDIR = $(ROOTDIR)/u-boot
 UBOOTIMG = u-boot-s
@@ -48,8 +58,8 @@ UB_KERNEL_IMG = $(IMAGEDIR)/image.ub
 MKIMAGE = $(UBOOTDIR)/tools/mkimage
 UBOOT_BOARD_DIR=$(UBOOTDIR)/board/$(UBOOT_VENDOR)/$(UBOOT_PLATFORM)
 
-UBOOT_SCRIPT_BOARD_TEMPLATE=$(UBOOTDIR)/include/configs/$(UBOOT_VENDOR)-$(UBOOT_PLATFORM).h.template
-UBOOT_SCRIPT_BOARD=$(UBOOTDIR)/include/configs/$(UBOOT_VENDOR)-$(UBOOT_PLATFORM).h
+UBOOT_SCRIPT_BOARD_TEMPLATE=$(UBOOTDIR)/include/configs/petalinux-auto-board.h.template
+UBOOT_SCRIPT_BOARD=$(UBOOTDIR)/include/configs/petalinux-auto-board.h
 
 # We need to crack some settings out of the user/vendor .config file
 # This is a bit hacky, a more generic system would be nice
@@ -59,8 +69,15 @@ FLASH_START=$(shell grep FLASH_START $(UBOOT_BOARD_DIR)/xparameters.h \
 		2>/dev/null | sed -r -e 's/[[:space:]]+/ /g' | cut -d ' ' -f 3)
 FLASH_SIZE=$(shell grep FLASH_SIZE $(UBOOT_BOARD_DIR)/xparameters.h \
 		2>/dev/null | sed -r -e 's/[[:space:]]+/ /g' | cut -d ' ' -f 3)
-ERAM_START=$(shell grep CONFIG_KERNEL_BASE_ADDR $(LINUX_CONFIG) \
+ifeq ($(ARCH),microblaze)
+	ERAM_START=$(shell grep CONFIG_KERNEL_BASE_ADDR $(LINUX_CONFIG) \
                 2>/dev/null | cut -d "=" -f 2 | grep -v "^\#")
+endif
+ifeq ($(ARCH),powerpc)
+	ERAM_START=$(shell grep XILINX_RAM_START $(UBOOT_BOARD_DIR)/xparameters.h \
+		2>/dev/null | sed -r -e 's/[[:space:]]+/ /g' | cut -d ' ' -f 3)
+endif
+
 # Obtain U-Boot boot partition start address
 FLASH_BOOT_START=$(shell grep CONFIG_FLASH_BOOT_START $(UBOOT_BOARD_DIR)/flash-partition.h 2>/dev/null | cut -f 3)
 # U-Boot boot partition size

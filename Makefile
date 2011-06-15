@@ -3460,6 +3460,12 @@ suzaku_config:	unconfig
 petalogix-microblaze-auto_config:	unconfig
 	@./mkconfig $(@:_config=) microblaze microblaze microblaze-auto petalogix
 
+petalogix-ppc405-auto_config:	unconfig
+	@./mkconfig $(@:_config=) ppc ppc4xx ppc405-auto petalogix
+
+petalogix-ppc440-auto_config:	unconfig
+	@./mkconfig $(@:_config=) ppc ppc4xx ppc440-auto petalogix
+
 #========================================================================
 # Blackfin
 #========================================================================

@@ -132,7 +132,7 @@ int spi_claim_bus(struct spi_slave *slave)
 		// Toggle CS
 		u8 sr;
 
-		out_8(BaseAddr + XSPI_SSR_OFFSET, 0xfffe);
+		out_8(BaseAddr + XSPI_SSR_OFFSET, ~(0x0001 << slave->cs));
 		//sr = in_8(BaseAddr + XSPI_SR_OFFSET);
 		//DEBUGF("%s[%d] transfer status reg %x \n",__FUNCTION__,__LINE__,sr);
 
@@ -189,7 +189,7 @@ int spi_xfer(struct spi_slave *slave, unsigned int bitlen,
 	 */
 	DEBUGF("%s[%d] going to claim cs\n",__FUNCTION__,__LINE__);
 	if (flags & SPI_XFER_BEGIN)
-		out_8(BaseAddr + XSPI_SSR_OFFSET, 0xfffe);
+		out_8(BaseAddr + XSPI_SSR_OFFSET, ~(0x0001 << slave->cs));
 	sr = in_8(BaseAddr + XSPI_SR_OFFSET);
 	DEBUGF("%s[%d] transfer status reg %x \n",__FUNCTION__,__LINE__,sr);
 
@@ -205,6 +205,14 @@ int spi_xfer(struct spi_slave *slave, unsigned int bitlen,
 				len_tx++;
 			}
 			sr = in_8(BaseAddr + XSPI_SR_OFFSET);
+			while (!(sr & XSPI_SR_RX_EMPTY_MASK)) {
+				value = in_8(BaseAddr + XSPI_RXD_OFFSET);
+				DEBUGF("%s[%d] received byte 0x%x\n ",__FUNCTION__,__LINE__,value);
+				if (rxp)
+					*rxp++ = value;
+				len_rx++;
+				sr = in_8(BaseAddr + XSPI_SR_OFFSET);
+			}
 		}
 		//Activate
 
@@ -212,33 +220,31 @@ int spi_xfer(struct spi_slave *slave, unsigned int bitlen,
 			 XSPI_CR_MANUAL_SSELECT
 			 | XSPI_CR_MASTER_MODE | XSPI_CR_ENABLE);
 
-		// Wait for transmitter to get empty and
+		// Wait for transmitter to get empty
 		do {
 			sr = in_8(BaseAddr + XSPI_SR_OFFSET);
 			DEBUGF("%s[%d] transfer status reg %x \n",__FUNCTION__,__LINE__,sr);
+			while (!(sr & XSPI_SR_RX_EMPTY_MASK)) {
+				value = in_8(BaseAddr + XSPI_RXD_OFFSET);
+				DEBUGF("%s[%d] received byte 0x%x\n ",__FUNCTION__,__LINE__,value);
+				if (rxp)
+					*rxp++ = value;
+				len_rx++;
+				sr = in_8(BaseAddr + XSPI_SR_OFFSET);
+			}
 		} while (!(sr & XSPI_SR_TX_EMPTY_MASK));
-
-		out_be16(BaseAddr + XSPI_CR_OFFSET,
-			XSPI_CR_MANUAL_SSELECT  | XSPI_CR_MASTER_MODE |
-			XSPI_CR_ENABLE |  XSPI_CR_TRANS_INHIBIT);
-
-		while (!(sr & XSPI_SR_RX_EMPTY_MASK)) {
-			value = in_8(BaseAddr + XSPI_RXD_OFFSET);
-			DEBUGF("%s[%d] received byte 0x%x\n ",__FUNCTION__,__LINE__,value);
-			if (rxp)
-				*rxp++ = value;
-			len_rx++;
-			sr = in_8(BaseAddr + XSPI_SR_OFFSET);
-		}
-
 	}
 
 out:
-	do {
+	sr = in_8(BaseAddr + XSPI_SR_OFFSET);
+	while (!(sr & XSPI_SR_RX_EMPTY_MASK)) {
+		value = in_8(BaseAddr + XSPI_RXD_OFFSET);
+		DEBUGF("%s[%d] received byte 0x%x\n ",__FUNCTION__,__LINE__,value);
+		if (rxp)
+			*rxp++ = value;
+		len_rx++;
 		sr = in_8(BaseAddr + XSPI_SR_OFFSET);
-		DEBUGF("%s[%d] transfer status reg %x \n",__FUNCTION__,__LINE__,sr);
-	} while (!(sr & XSPI_SR_TX_EMPTY_MASK));
-
+	}
 
 	out_be16(BaseAddr + XSPI_CR_OFFSET,
 			 XSPI_CR_MANUAL_SSELECT	 | XSPI_CR_MASTER_MODE |

@@ -22,14 +22,6 @@
  * MA 02111-1307 USA
  */
 
-#ifndef __CONFIG_H
-#define __CONFIG_H
-
-#include "../board/petalogix/microblaze-auto/xparameters.h"
-
-#define	CONFIG_MICROBLAZE	1	/* MicroBlaze CPU */
-#define	MICROBLAZE_V5		1
-
 /* uart */
 #ifdef XILINX_UARTLITE_BASEADDR
 	#define	CONFIG_XILINX_UARTLITE
@@ -42,7 +34,7 @@
 	#define CONFIG_SYS_NS16550_SERIAL
 	#define CONFIG_SYS_NS16550_REG_SIZE	-4
 	#define CONFIG_CONS_INDEX	1
-	#define CONFIG_SYS_NS16550_COM1	(XILINX_UART16550_BASEADDR + 0x1000 + 0x3)
+	#define CONFIG_SYS_NS16550_COM1	(XILINX_UART16550_BASEADDR + 0x1000)
 	#define CONFIG_SYS_NS16550_CLK	XILINX_UART16550_CLOCK_HZ
 	#define	CONFIG_BAUDRATE		115200
 
@@ -58,13 +50,14 @@
 /*#define	CONFIG_SYS_RESET_ADDRESS	TEXT_BASE*/
 
 /* ethernet */
+#undef CONFIG_SYS_ENET
 #ifdef XILINX_EMAC_BASEADDR
 	#define CONFIG_XILINX_EMAC	1
 	#define CONFIG_SYS_ENET
-#elif XILINX_EMACLITE_BASEADDR
+#elif defined(XILINX_EMACLITE_BASEADDR)
 	#define CONFIG_XILINX_EMACLITE	1
 	#define CONFIG_SYS_ENET
-#elif XILINX_LLTEMAC_BASEADDR
+#elif defined(XILINX_LLTEMAC_BASEADDR)
 	#define CONFIG_XILINX_LL_TEMAC	1
 	#define CONFIG_SYS_ENET
 #endif
@@ -132,24 +125,6 @@
 /* ddr sdram - main memory */
 #define	CONFIG_SYS_SDRAM_BASE		XILINX_RAM_START
 #define	CONFIG_SYS_SDRAM_SIZE		XILINX_RAM_SIZE
-#define	CONFIG_SYS_MEMTEST_START	CONFIG_SYS_SDRAM_BASE
-#define	CONFIG_SYS_MEMTEST_END		(CONFIG_SYS_SDRAM_BASE + 0x1000)
-
-/* global pointer */
-#define	CONFIG_SYS_GBL_DATA_SIZE	128	/* size of global data */
-/* start of global data */
-#define	CONFIG_SYS_GBL_DATA_OFFSET	(CONFIG_SYS_SDRAM_BASE + CONFIG_SYS_SDRAM_SIZE - CONFIG_SYS_GBL_DATA_SIZE)
-
-/* monitor code */
-#define	SIZE			0x40000
-#define	CONFIG_SYS_MONITOR_LEN		(SIZE - CONFIG_SYS_GBL_DATA_SIZE)
-#define	CONFIG_SYS_MONITOR_BASE	(CONFIG_SYS_GBL_DATA_OFFSET - CONFIG_SYS_MONITOR_LEN)
-#define	CONFIG_SYS_MONITOR_END		(CONFIG_SYS_MONITOR_BASE + CONFIG_SYS_MONITOR_LEN)
-#define	CONFIG_SYS_MALLOC_LEN		SIZE
-#define	CONFIG_SYS_MALLOC_BASE		(CONFIG_SYS_MONITOR_BASE - CONFIG_SYS_MALLOC_LEN)
-
-/* stack */
-#define	CONFIG_SYS_INIT_SP_OFFSET	CONFIG_SYS_MALLOC_BASE
 
 /*#define	RAMENV */
 
@@ -240,7 +215,9 @@
 
 #define CONFIG_CMD_ASKENV
 #define CONFIG_CMD_IRQ
+#ifdef CONFIG_MICROBLAZE
 #define CONFIG_CMD_MFSL
+#endif
 #define CONFIG_CMD_ECHO
 
 #define CONFIG_CMD_ROMFS
@@ -294,29 +271,56 @@
 
 /* Miscellaneous configurable options */
 #define	CONFIG_SYS_PROMPT	"U-Boot-PetaLinux> "
-#define	CONFIG_SYS_CBSIZE	512	/* size of console buffer */
-#define	CONFIG_SYS_PBSIZE	(CONFIG_SYS_CBSIZE + sizeof(CONFIG_SYS_PROMPT) + 16) /* print buffer size */
+#if defined(CONFIG_CMD_KGDB)
+#define CONFIG_SYS_CBSIZE		1024/* Console I/O Buffer Size      */
+#else
+#define CONFIG_SYS_CBSIZE		256/* Console I/O Buffer Size      */
+#endif
+#define CONFIG_SYS_PBSIZE		(CONFIG_SYS_CBSIZE +\
+					sizeof(CONFIG_SYS_PROMPT) + 16)
+#define CONFIG_SYS_BARGSIZE		CONFIG_SYS_CBSIZE
+					/* Boot Argument Buffer Size */
 #define	CONFIG_SYS_MAXARGS	15	/* max number of command args */
 #define	CONFIG_SYS_LONGHELP
 #define	CONFIG_SYS_LOAD_ADDR	XILINX_RAM_START /* default load address */
 
 #define	CONFIG_BOOTDELAY	4
-#define	CONFIG_BOOTARGS		""
+/* Don't define BOOTARGS, we get it from the DTB chosen fragment */
+#undef CONFIG_BOOTARGS
 #define	CONFIG_HOSTNAME		XILINX_BOARD_NAME
 #ifdef FLASH
-#define	CONFIG_BOOTCOMMAND	"run make_cmdline; bootm ${kernstart}" \
+#define	CONFIG_BOOTCOMMAND	"setenv var if test ${dtbsize} -le 0\\; then bootm ${kernstart}\\; else run dtbboot\\; fi; run var; setenv var" \
 
 #elif defined(CONFIG_SPI_FLASH)
-#define CONFIG_BOOTCOMMAND	"run sfboot" \
+#define CONFIG_BOOTCOMMAND	"setenv var if test ${dtbsize} -le 0\\; then run sfboot\\; else run dtbboot\\; fi; run var; setenv var" \
 
 #endif
+
+#define CONFIG_ENV_OVERWRITE	/* Allow to overwrite the u-boot environment variables */
 #define	CONFIG_IPADDR		@ipaddr@
 #define	CONFIG_SERVERIP		@serverip@
 #define	CONFIG_ETHADDR		@ethaddr@
 
 /* architecture dependent code */
 #define	CONFIG_SYS_USR_EXCEP	/* user exception */
-#define CONFIG_SYS_HZ	1000
+#define	CONFIG_SYS_HZ	1000
+
+
+
+/* netconsole */
+#ifdef CONFIG_SYS_ENET
+#define	CONFIG_NETCONSOLE 1
+#define	CONFIG_SYS_CONSOLE_IS_IN_ENV 1
+
+#define	NETCONSOLE_ARG	"nc=setenv stdout nc;setenv stdin nc;\0" \
+			"serial=setenv stdout serial;setenv stdin serial\0" \
+			"ncip=@serverip@\0"
+/*			"stdin=nc\0" \
+			"stdout=nc\0"
+*/
+#else
+#define	NETCONSOLE_ARG
+#endif
 
 #define	CONFIG_PREBOOT		"echo U-BOOT for ${hostname};setenv preboot;echo;@dhcp@"
 
@@ -327,8 +331,10 @@
 	"mtdids=nor0=@mtdpartsname@\0" \
 	"mtdparts=mtdparts=@mtdparts@\0" \
 	CONSOLE_ARG \
+	NETCONSOLE_ARG \
 	"clobstart=@cstart@\0" \
 	"netstart=@nstart@\0" \
+	"dtbnetstart=@dtbnstart@\0" \
 	"loadaddr=@nstart@\0" \
 	"bootsize=@bsize@\0" \
 	"bootstart=@bstart@\0" \
@@ -338,49 +344,67 @@
 	"jffs2start=@jffs2start@\0" \
 	"kernsize=@ksize@\0" \
 	"kernstart=@kstart@\0" \
-	"make_cmdline=setenv netkargs macaddr=${ethaddr};setenv bootargs mtdparts=${mtdparts} ${netkargs} ${console}\0" \
+	"dtbsize=@dtbsize@\0" \
+	"dtbstart=@dtbstart@\0" \
+	"fault=echo $img image size is greater than allocated place - $img is NOT UPDATED\0" \
 	"load_kernel=tftp ${clobstart} image.ub\0" \
-	"update_kernel=run load_kernel install_kernel\0" \
 	"load_uboot=tftp ${clobstart} u-boot-s.bin\0" \
-	"update_uboot=run load_uboot install_uboot\0" \
 	"load_jffs2=tftp ${clobstart} rootfs.jffs2\0" \
-	"update_jffs2=run load_jffs2 install_jffs2\0" \
-	"netboot=run make_cmdline;tftp ${netstart} image.ub; bootm\0"
+	"load_dtb=tftp ${clobstart} system.dtb\0" \
+	"update_kernel=setenv img KERNEL; setenv psize ${kernsize}; setenv installcmd install_kernel; run load_kernel test_crc; setenv img; setenv psize; setenv installcmd\0" \
+	"update_uboot=setenv img U-BOOT; setenv psize ${bootsize}; setenv installcmd install_uboot; run load_uboot test_img; setenv img; setenv psize; setenv installcmd\0" \
+	"update_jffs2=setenv img JFFS2; setenv psize ${jffs2size}; setenv installcmd install_jffs2; run load_jffs2 test_img; setenv img; setenv psize; setenv installcmd\0" \
+	"update_dtb=setenv img DTB; setenv psize ${dtbsize}; setenv installcmd install_dtb; run load_dtb test_img; setenv img\0" \
+	"test_crc=if imi ${clobstart}; then run test_img; else echo $img Bad CRC - $img is NOT UPDATED; fi\0" \
+	"test_img=setenv var if test 0x${filesize} -lt ${psize}\\; then run ${installcmd}\\; else run fault\\; fi; run var; setenv var\0" \
+	"netboot=tftp ${netstart} image.ub && bootm\0" \
+	"dtbnetboot=tftp ${netstart} image.ub; tftp ${dtbnetstart} system.dtb; bootm ${netstart} - ${dtbnetstart}\0" \
+	"get_dtb=run cp_dtb2ram; fdt addr ${clobstart}\0"
 #endif
 
 #if defined(FLASH) /* Parallel Flash */
 #define CONFIG_EXTRA_ENV_SETTINGS \
 	CONFIG_EXTRA_ENV_SETTINGS_COMMON \
 	"eraseenv=protect off ${bootenvstart} +${bootenvsize}; erase ${bootenvstart} +${bootenvsize}\0" \
+	"cp_dtb2ram=cp.b ${dtbstart} ${clobstart} ${dtbsize}\0" \
 	"install_kernel=protect off ${kernstart} +${kernsize};erase ${kernstart} +${kernsize};" \
 		"cp.b ${fileaddr} ${kernstart} ${filesize}\0" \
 	"install_uboot=protect off ${bootstart} +${bootsize};erase ${bootstart} +${bootsize};" \
 		"cp.b ${clobstart} ${bootstart} ${filesize}\0" \
 	"install_jffs2=protect off ${jffs2start} +${jffs2size};erase ${jffs2start} +${jffs2size};" \
 		"cp.b ${clobstart} ${jffs2start} ${filesize}\0" \
+	"install_dtb=protect off ${dtbstart} +${dtbsize}; erase ${dtbstart} +${dtbsize};" \
+		"cp.b ${clobstart} ${dtbstart} ${filesize}\0" \
+	"dtbboot=bootm ${kernstart} - ${dtbstart}\0" \
 	""
 #elif defined(CONFIG_SPI_FLASH) /* SPI Flash */
 #define CONFIG_EXTRA_ENV_SETTINGS \
 	CONFIG_EXTRA_ENV_SETTINGS_COMMON \
 	"eraseenv=sf probe 0; sf erase ${bootenvstart} ${bootenvsize}\0" \
+	"cp_dtb2ram=sf probe 0; sf read ${clobstart} ${dtbstart} ${dtbsize}\0" \
 	"install_kernel=sf probe 0; sf erase ${kernstart} ${kernsize};" \
 		"sf write ${fileaddr} ${kernstart} 0x${filesize}\0" \
 	"install_uboot=sf probe 0; sf erase ${bootstart} ${bootsize};" \
 		"sf write ${clobstart} ${bootstart} 0x${filesize}\0" \
 	"install_jffs2=sf probe 0; sf erase ${jffs2start} ${jffs2size};" \
 		"sf write ${clobstart} ${jffs2start} 0x${filesize}\0" \
+	"install_dtb=sf probe 0; sf erase ${dtbstart} ${dtbsize};" \
+		"sf write ${clobstart} ${dtbstart} 0x${filesize}\0" \
 	"sfboot=sf probe 0; sf read ${netstart} ${kernstart} ${kernsize}; bootm ${netstart}\0" \
+	"dtbboot=sf probe 0; sf read ${netstart} ${kernstart} ${kernsize}; sf read ${dtbnetstart} ${dtbstart} ${dtbsize}; bootm ${netstart} - ${dtbnetstart}\0" \
 	""
 #else /* No Flash */
 #define	CONFIG_EXTRA_ENV_SETTINGS \
 	CONSOLE_ARG \
+	NETCONSOLE_ARG \
 	"autoload=no\0" \
 	"bootfile=image.ub\0" \
 	"netstart=@nstart@\0" \
+	"dtbnetstart=@dtbnstart@\0" \
 	"loadaddr=@nstart@\0" \
-	"make_cmdline=setenv netkargs macaddr=${ethaddr};setenv bootargs ${netkargs} ${console}\0" \
 	"bootcmd=run netboot\0" \
-	"netboot=run make_cmdline;tftp ${netstart} image.ub; bootm\0" \
+	"netboot=tftp ${netstart} image.ub && bootm\0" \
+	"dtbnetboot=tftp ${netstart} image.ub; tftp ${dtbnetstart} system.dtb; bootm ${netstart} - ${dtbnetstart}\0" \
 	""
 #endif /* Flash */
 
@@ -395,6 +419,6 @@
 #define CONFIG_FIT		1
 #define CONFIG_OF_LIBFDT	1
 
-#define   CONFIG_SYS_BOOTMAPSZ	(1 << 31) /* Initial Memory map for Linux */
+/* Make the BOOTM LEN big enough for the compressed image */
+#define CONFIG_SYS_BOOTM_LEN 0x1000000
 
-#endif	/* __CONFIG_H */

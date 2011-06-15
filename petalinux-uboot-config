@@ -47,11 +47,6 @@
 
 source $CONFIG_CONFIG
 
-# Not doing this if we are not build U-Boot
-if [ "${CONFIG_SYSTEM_BUILD_UBOOT}" != 'y' ]; then
-	exit 0
-fi
-
 #
 # Variables for generating flash
 # partitioning output file.
@@ -76,6 +71,8 @@ BOOTENV_PAR=0
 IMAGE_PAR=0
 # JFFS2 (root) image partition index
 JFFS2_PAR=0
+# DTB partition index
+DTB_PAR=0
 
 # SPI Flash device
 SPI_FLASH_DEV=
@@ -109,6 +106,8 @@ function read_config_file ()
 	case "${spi_flash_dev_config}" in
 		"WINBOND_W25")
 			SPI_FLASH_DEV="WINBOND"; ;;
+		"PETALINUX")
+			SPI_FLASH_DEV="PLNX"; ;;
 		*)
 			;;
 	esac
@@ -146,6 +145,8 @@ function read_config_file ()
 					IMAGE_PAR=$CNT
 				elif [ $tmp == "jffs2" ]; then
 					JFFS2_PAR=$CNT
+				elif [ $tmp == "dtb" ]; then
+					DTB_PAR=$CNT
 				fi
 
 				# Update our Name array
@@ -158,13 +159,7 @@ function read_config_file ()
 				fi
 				# if this partition is the spare partition
 				# we know this from the 0x0 size
-				if [ $tmp == "0x0" ]; then
-					# Calculate the remainder of the FLASH for size
-					PAR_SIZE[$CNT]=$(( $FLASH_START + $FLASH_SIZE \
-							- ${PAR_SIZE[$CNT -1]} - ${PAR_ADDR[$CNT - 1]} ))
-				else
-					PAR_SIZE[$CNT]=$tmp
-				fi
+				PAR_SIZE[$CNT]=$tmp
 				PAR_SIZE[$CNT]=$(printf "0x%08x\n" ${PAR_SIZE[$CNT]})
 			else
 				# Calculate start address of partition
@@ -195,38 +190,59 @@ function read_config_file ()
 #
 function check_partition_table ()
 {
-	if [ $FLASH_START ]; then
+	PFLASH_START=${PAR_ADDR[1]}
+	if [ ${PFLASH_START} ]; then
 		# Some checks apply to all the partitions
 		for (( CNT=1; CNT<${#PAR_NAME[@]} + 1; CNT++ )); do
 			# Check that partition is in FLASH Range
-			if [ $((${PAR_ADDR[$CNT]} + ${PAR_SIZE[$CNT]})) -gt  $(($FLASH_START + $FLASH_SIZE)) ]; then
+			if [ $((${PAR_ADDR[$CNT]} + ${PAR_SIZE[$CNT]})) -gt  $(($PFLASH_START + ${PAR_SIZE[$CNT]})) ]; then
 				printf "FLASH partition %s not in FLASH range\n" "${PAR_NAME[$CNT]}"
 				exit -1
 			fi
-
+			# stores the flash start address for next checking
+			PFLASH_START=`printf "0x%08x" "$((${PAR_ADDR[$CNT]} + ${PAR_SIZE[$CNT]}))"`
 			# Add checks that applies to all partitions here
 		done
 
 		# Check if boot, bootenv and image partitions are
-		# defined.  This is the minimum partitions required
-		# for U-Boot.
+		# defined.
 		# FIXME - At the moment the names are hardcoded to boot,
 		#	 	  bootenv, and image.
-		if [ $BOOT_PAR = 0 ]; then
-			echo "FLASH partition \"boot\" not defined!"
-			exit -1
-		elif [ $BOOTENV_PAR = 0 ]; then
-			echo "FLASH partition \"bootenv\" not defined!"
-			exit -1
-		elif [ $IMAGE_PAR = 0 ]; then
-			echo "FLASH partition \"image\" not defined!"
-			exit -1
+		if [ "${CONFIG_SYSTEM_BUILD_UBOOT}" = "y" ]; then
+			# This is the minimum partitions required for u-boot
+			partition_to_check_i="${BOOT_PAR}:boot ${BOOTENV_PAR}:bootenv ${IMAGE_PAR}:image"
+		elif [ "${CONFIG_SYSTEM_RELOCATE_IMAGE}" = "y" ]; then
+			# This is the minimum partitions required for relocate image
+			partition_to_check_i="${BOOT_PAR}:boot"
+		else
+			partition_to_check_i=""
 		fi
-		if [ "${CONFIG_SYSTEM_ROOTFS_JFFS2}" = "y" ] && \
-		   [ "${JFFS2_PAR}" = 0 ]; then
-			echo "JFFS2 partition \"jffs2\" not defined!"
-			exit -1;
+		if [ "${CONFIG_SYSTEM_ROOTFS_JFFS2}" = "y" ]; then
+			partition_to_check_i="${partition_to_check_i} ${JFFS2_PAR}:jffs2"
 		fi
+		if [ "${CONFIG_SYSTEM_DTB_BOOT}" = "y" ]; then
+			partition_to_check_i="${partition_to_check_i} ${DTB_PAR}:dtb"
+		fi
+		for p in ${partition_to_check_i}; do
+			i=$(echo ${p%:*})
+			if [ $(($i)) -le 0 ]; then
+				echo "WARNING: FLASH partition \"$(echo ${p#*:})\" not defined!"
+			fi
+		done
+
+		# Check whether the boot, bootenv, image partitions are of size
+		# "0".
+		if [ "${CONFIG_SYSTEM_BUILD_UBOOT}" = "y" ]; then
+			partition_to_check_i="${BOOT_PAR} ${BOOTENV_PAR} ${IMAGE_PAR} ${JFFS2_PAR} ${DTB_PAR}"
+		else
+			partition_to_check_i=""
+		fi
+		for i in ${partition_to_check_i}; do
+			if [ $i -gt 0 ] && [ $((${PAR_SIZE[$i]})) -le 0 ]; then
+				echo "ERROR: Size of Flash partition \"${PAR_NAME[$i]}\" not defined!"
+				exit -1;
+			fi
+		done
 	fi
 }
 
@@ -311,8 +327,18 @@ function sub_config_file ()
 	# Construct our MTD parts
 	gen_mtdparts_string
 
-	NET_START=$(($ERAM_START + 8192))
+	NETOFFSET=$((${CONFIG_SYSTEM_NETBOOT_OFFSET}))
+	[ $((${NETOFFSET})) -eq 0 ] && NETOFFSET=$((${CONFIG_SYSTEM_COMPRESS_NETBOOT_OFFSET}))
+
+	NET_START=$((${ERAM_START} + ${NETOFFSET}))
 	NET_START=`printf "0x%x" $NET_START`
+	if [ -z ${PAR_SIZE[${IMAGE_PAR}]} ];then
+		DTBNET_OFFSET=0x0
+	else
+		DTBNET_OFFSET=${PAR_SIZE[${IMAGE_PAR}]}
+	fi
+	DTBNET_START=$((${NET_START} + ${DTBNET_OFFSET}))
+	DTBNET_START=$(printf "0x%x" ${DTBNET_START})
 
 	# Crude attempt to autodetect our IP address
 	[ "${CONFIG_SYSTEM_SERVERIP_ADDRESS}" == "AUTO" ] && \
@@ -335,8 +361,11 @@ function sub_config_file ()
 			 s/\@jffs2start\@/${PAR_ADDR[$JFFS2_PAR]}/g
 			 s/\@besize\@/${PAR_SIZE[$BOOTENV_PAR]}/g
 			 s/\@bestart\@/${PAR_ADDR[$BOOTENV_PAR]}/g
-			 s/\@cstart\@/$ERAM_START/g
+			 s/\@dtbsize\@/${PAR_SIZE[$DTB_PAR]}/g
+			 s/\@dtbstart\@/${PAR_ADDR[$DTB_PAR]}/g
+			 s/\@cstart\@/${NET_START}/g
 			 s/\@nstart\@/$NET_START/g
+			 s/\@dtbnstart\@/${DTBNET_START}/g
 			 s/\@spiflashdev\@/${SPI_FLASH_DEV}/g
 			 s/\@spiflashmode\@/${SPI_FLASH_MODE}/g \
 			}" < $UBOOT_SCRIPT_BOARD_TEMPLATE > $UBOOT_SCRIPT_BOARD

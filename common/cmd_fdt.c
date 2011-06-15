@@ -580,7 +580,8 @@ static int fdt_parse_prop(char **newval, int count, char *data, int *len)
 			*len    = *len + 1;
 			while (*newp == ' ')
 				newp++;
-			if (*newp != '\0')
+			//if (*newp != '\0')
+			if (*newp == '\0')
 				newp = newval[++stridx];
 		}
 		if (*newp != ']') {
@@ -593,10 +594,18 @@ static int fdt_parse_prop(char **newval, int count, char *data, int *len)
 		 * convenience (including the terminating '\0').
 		 */
 		while (stridx < count) {
-			*len = strlen(newp) + 1;
+			//*len = strlen(newp) + 1;
+			size_t length = strlen(newp);
 			strcpy(data, newp);
+			data += length;
+			*len += length;
 			newp = newval[++stridx];
+			if (stridx < count) {
+				*data++ = ' ';
+				*len += 1;
+			}
 		}
+		*len += 1;
 	}
 	return 0;
 }
