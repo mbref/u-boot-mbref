@@ -22,29 +22,99 @@
  * MA 02111-1307 USA
  */
 
-/* uart */
-#ifdef XILINX_UARTLITE_BASEADDR
-	#define	CONFIG_XILINX_UARTLITE
-	#define	CONFIG_SERIAL_BASE	XILINX_UARTLITE_BASEADDR
-	#define	CONFIG_BAUDRATE		XILINX_UARTLITE_BAUDRATE
-	#define	CONFIG_SYS_BAUDRATE_TABLE	{ CONFIG_BAUDRATE }
-	#define CONSOLE_ARG	"console=console=ttyUL0,115200\0"
-#elif XILINX_UART16550_BASEADDR
-	#define CONFIG_SYS_NS16550	1
-	#define CONFIG_SYS_NS16550_SERIAL
-	#define CONFIG_SYS_NS16550_REG_SIZE	-4
-	#define CONFIG_CONS_INDEX	1
-	#define CONFIG_SYS_NS16550_COM1	(XILINX_UART16550_BASEADDR + 0x1000)
-	#define CONFIG_SYS_NS16550_CLK	XILINX_UART16550_CLOCK_HZ
-	#define	CONFIG_BAUDRATE		115200
+/* use serial multi for all serial devices */
+#define CONFIG_SERIAL_MULTI
 
-	/* The following table includes the supported baudrates */
-	#define CONFIG_SYS_BAUDRATE_TABLE  \
-		{300, 600, 1200, 2400, 4800, 9600, 19200, 38400, 57600, 115200, 230400}
-	#define CONSOLE_ARG	"console=console=ttyS0,115200\0"
-#else
-	#error Undefined uart
+/* The following table includes the supported baudrates */
+#define CONFIG_SYS_BAUDRATE_TABLE  \
+	{300, 600, 1200, 2400, 4800, 9600, 19200, 38400, 57600, 115200, 230400}
+
+/* Always compile drivers for uartlite and uart16550 */
+#define	CONFIG_XILINX_UARTLITE
+#define CONFIG_SYS_NS16550	1
+#define CONFIG_SYS_NS16550_SERIAL
+#define CONFIG_SYS_NS16550_REG_SIZE	-4
+
+#if XILINX_UART16550_BASEADDR
+# define CONFIG_SYS_NS16550_COM1	(XILINX_UART16550_BASEADDR + 0x1000)
+# define CONFIG_SYS_NS16550_CLK		XILINX_UART16550_CLOCK_HZ
+
+/* CONS_INDEX for system with uartlite only mustn't define CONFIG_CONS_INDEX
+ * u-boot BSP generates CONFIG_CONS_INDEX for system with several uart16550 */
+# if !defined(CONFIG_CONS_INDEX)
+#  define CONFIG_CONS_INDEX	1
+# endif
 #endif
+
+/* Setup fake value for system which has no uart16550 */
+#if !defined(CONFIG_SYS_NS16550_CLK)
+# define CONFIG_SYS_NS16550_CLK 1
+#endif
+
+#if !defined(XILINX_UART16550)
+# define CONSOLE_ARG	"console=console=ttyUL0,115200\0"
+
+# define SERIAL_MULTI	"serial=setenv stdout serial;setenv stdin serial\0" \
+			"stdin=ttyUL0\0" \
+			"stdout=ttyUL0\0"
+#else
+# define SERIAL_MULTI	"serial=setenv stdout serial;setenv stdin serial\0"
+# define CONSOLE_ARG	"console=console=ttyS0,115200\0"
+#endif
+
+#ifdef XILINX_UARTLITE_BASEADDR
+# define TTYUL0	"ttyUL0=setenv stdout ttyUL0;setenv stdin ttyUL0\0"
+#else
+# define TTYUL0
+#endif
+#ifdef XILINX_UARTLITE_BASEADDR1
+# define TTYUL1	"ttyUL1=setenv stdout ttyUL1;setenv stdin ttyUL1\0"
+#else
+# define TTYUL1
+#endif
+#ifdef XILINX_UARTLITE_BASEADDR2
+# define TTYUL2	"ttyUL2=setenv stdout ttyUL2;setenv stdin ttyUL2\0"
+#else
+# define TTYUL2
+#endif
+#ifdef XILINX_UARTLITE_BASEADDR3
+# define TTYUL3	"ttyUL3=setenv stdout ttyUL3;setenv stdin ttyUL3\0"
+#else
+# define TTYUL3
+#endif
+#ifdef CONFIG_SYS_NS16550_COM1
+# define ESERIAL0	"eserial0=setenv stdout eserial0;setenv stdin eserial0\0"
+#else
+# define ESERIAL0
+#endif
+#ifdef CONFIG_SYS_NS16550_COM2
+# define ESERIAL1	"eserial1=setenv stdout eserial1;setenv stdin eserial1\0"
+#else
+# define ESERIAL1
+#endif
+#ifdef CONFIG_SYS_NS16550_COM3
+# define ESERIAL2	"eserial2=setenv stdout eserial2;setenv stdin eserial2\0"
+#else
+# define ESERIAL2
+#endif
+#ifdef CONFIG_SYS_NS16550_COM4
+# define ESERIAL3	"eserial3=setenv stdout eserial3;setenv stdin eserial3\0"
+#else
+# define ESERIAL3
+#endif
+
+#if defined(XILINX_UARTLITE_BAUDRATE)
+# define CONFIG_BAUDRATE	XILINX_UARTLITE_BAUDRATE
+#else
+# define CONFIG_BAUDRATE	115200
+#endif
+
+#if !defined(XILINX_UARTLITE_BASEADDR) && !defined(XILINX_UART16550_BASEADDR)
+# error Undefined uart
+#endif
+
+/* enable nul device */
+/* #define CONFIG_SYS_DEVICE_NULLDEV */
 
 /* setting reset address */
 /*#define	CONFIG_SYS_RESET_ADDRESS	TEXT_BASE*/
@@ -59,6 +129,9 @@
 	#define CONFIG_SYS_ENET
 #elif defined(XILINX_LLTEMAC_BASEADDR)
 	#define CONFIG_XILINX_LL_TEMAC	1
+	#define CONFIG_SYS_ENET
+#elif defined(XILINX_AXIEMAC_BASEADDR)
+	#define CONFIG_XILINX_AXIEMAC   1
 	#define CONFIG_SYS_ENET
 #endif
 
@@ -126,9 +199,22 @@
 #define	CONFIG_SYS_SDRAM_BASE		XILINX_RAM_START
 #define	CONFIG_SYS_SDRAM_SIZE		XILINX_RAM_SIZE
 
-/*#define	RAMENV */
+/* Flash memory handling.  There are 5 cases:
+  * Parallel Flash, bootenv in flash
+  * Parallel flash, no bootenv in flash (RAMENV will be set)
+  * SPI flash, bootenv in flash
+  * SPI flash, no bootenv in flash (RAMENV will be set)
+  * No flash at all (RAMENV will be set)
+*/
 
-#ifdef XILINX_FLASH_START /* Parallel Flash */
+/* Some preprocessor magic to auto-set RAMENV */
+#define BESIZE @besize@
+
+#if !(BESIZE+0)
+#define	RAMENV
+#endif
+
+#if defined(XILINX_FLASH_START) /* Parallel Flash */
 	#define	FLASH
 	#define	CONFIG_SYS_FLASH_BASE		XILINX_FLASH_START
 	#define	CONFIG_SYS_FLASH_SIZE		XILINX_FLASH_SIZE
@@ -137,19 +223,15 @@
 	#define	CONFIG_SYS_FLASH_EMPTY_INFO	1	/* ?empty sector */
 	#define	CONFIG_SYS_MAX_FLASH_BANKS	1	/* max number of memory banks */
 	#define	CONFIG_SYS_MAX_FLASH_SECT	512	/* max number of sectors on one chip */
+	#define	CONFIG_SYS_FLASH_USE_BUFFER_WRITE	1	/* use buffered writes (20x faster) */
 	#define	CONFIG_SYS_FLASH_PROTECTION		/* hardware flash protection */
 
-	#ifdef	RAMENV
-		#define	CONFIG_ENV_IS_NOWHERE	1
-		#define	CONFIG_ENV_SIZE		0x1000
-		#define	CONFIG_ENV_ADDR		(CONFIG_SYS_MONITOR_BASE - CONFIG_ENV_SIZE)
+	/* Assume env is in flash, this may be undone lower down */
+	#define	CONFIG_ENV_IS_IN_FLASH	1
+	#define	CONFIG_ENV_SECT_SIZE	0x20000	/* 128K(one sector) for env */
+	#define	CONFIG_ENV_ADDR		@bestart@
+	#define	CONFIG_ENV_SIZE		@besize@
 
-	#else	/* !RAMENV */
-		#define	CONFIG_ENV_IS_IN_FLASH	1
-		#define	CONFIG_ENV_SECT_SIZE	0x20000	/* 128K(one sector) for env */
-		#define	CONFIG_ENV_ADDR		@bestart@
-		#define	CONFIG_ENV_SIZE		@besize@
-	#endif /* !RAMBOOT */
 #elif defined(XILINX_SPI_FLASH_BASEADDR) /* SPI Flash */
 	#define CONFIG_XILINX_SPI_BASEADDR	XILINX_SPI_FLASH_BASEADDR
 	#define CONFIG_XILINX_SPI	1
@@ -160,6 +242,8 @@
 	#define CONFIG_ENV_SPI_CS	XILINX_SPI_FLASH_CS
 	#define CONFIG_SYS_NO_FLASH
 	#undef CONFIG_CMD_FLASH
+
+	/* Assume env is in flash, this may be undone lower down */
 	#define CONFIG_ENV_IS_IN_SPI_FLASH
 	#define CONFIG_ENV_OFFSET	@bestart@
 	#define CONFIG_ENV_SIZE	@besize@
@@ -168,15 +252,20 @@
 	#ifndef CONFIG_SPI_FLASH_DEV_USERDEFINED
 		#define CONFIG_SPI_FLASH_@spiflashdev@
 	#endif
-
-#else /* !FLASH */
+#else /* No flash memory at all */
 	/* ENV in RAM */
+	#define RAMENV
 	#define	CONFIG_SYS_NO_FLASH		1
+#endif /* !FLASH */
+
+#ifdef RAMENV
 	#define	CONFIG_ENV_IS_NOWHERE	1
+	#undef CONFIG_ENV_IS_IN_FLASH
+	#undef CONFIG_ENV_IS_IN_SPI_FLASH
 	#define	CONFIG_ENV_SIZE		0x1000
 	#define	CONFIG_ENV_ADDR		(CONFIG_SYS_MONITOR_BASE - CONFIG_ENV_SIZE)
 	#define	CONFIG_SYS_FLASH_PROTECTION		/* hardware flash protection */
-#endif /* !FLASH */
+#endif
 
 /* system ace */
 #ifdef XILINX_SYSACE_BASEADDR
@@ -256,6 +345,8 @@
 	#undef CONFIG_CMD_IMLS
 	#undef CONFIG_CMD_FLASH
 	#undef CONFIG_CMD_JFFS2
+	#undef CONFIG_CMD_SAVEENV
+	#undef CONFIG_CMD_SAVES
 #endif
 
 #if defined(CONFIG_CMD_JFFS2)
@@ -313,7 +404,6 @@
 #define	CONFIG_SYS_CONSOLE_IS_IN_ENV 1
 
 #define	NETCONSOLE_ARG	"nc=setenv stdout nc;setenv stdin nc;\0" \
-			"serial=setenv stdout serial;setenv stdin serial\0" \
 			"ncip=@serverip@\0"
 /*			"stdin=nc\0" \
 			"stdout=nc\0"
@@ -332,6 +422,15 @@
 	"mtdparts=mtdparts=@mtdparts@\0" \
 	CONSOLE_ARG \
 	NETCONSOLE_ARG \
+	SERIAL_MULTI \
+	TTYUL0 \
+	TTYUL1 \
+	TTYUL2 \
+	TTYUL3 \
+	ESERIAL0 \
+	ESERIAL1 \
+	ESERIAL2 \
+	ESERIAL3 \
 	"clobstart=@cstart@\0" \
 	"netstart=@nstart@\0" \
 	"dtbnetstart=@dtbnstart@\0" \
@@ -340,6 +439,8 @@
 	"bootstart=@bstart@\0" \
 	"bootenvsize=@besize@\0" \
 	"bootenvstart=@bestart@\0" \
+	"confsize=@confsize@\0" \
+	"confstart=@confstart@\0" \
 	"jffs2size=@jffs2size@\0" \
 	"jffs2start=@jffs2start@\0" \
 	"kernsize=@ksize@\0" \
@@ -366,6 +467,7 @@
 #define CONFIG_EXTRA_ENV_SETTINGS \
 	CONFIG_EXTRA_ENV_SETTINGS_COMMON \
 	"eraseenv=protect off ${bootenvstart} +${bootenvsize}; erase ${bootenvstart} +${bootenvsize}\0" \
+	"eraseconf=protect off ${confstart} +${confsize}; erase ${confstart} +${confsize}\0" \
 	"cp_dtb2ram=cp.b ${dtbstart} ${clobstart} ${dtbsize}\0" \
 	"install_kernel=protect off ${kernstart} +${kernsize};erase ${kernstart} +${kernsize};" \
 		"cp.b ${fileaddr} ${kernstart} ${filesize}\0" \
@@ -381,6 +483,7 @@
 #define CONFIG_EXTRA_ENV_SETTINGS \
 	CONFIG_EXTRA_ENV_SETTINGS_COMMON \
 	"eraseenv=sf probe 0; sf erase ${bootenvstart} ${bootenvsize}\0" \
+	"eraseconf=sf probe 0; sf erase ${confstart} ${confsize}\0" \
 	"cp_dtb2ram=sf probe 0; sf read ${clobstart} ${dtbstart} ${dtbsize}\0" \
 	"install_kernel=sf probe 0; sf erase ${kernstart} ${kernsize};" \
 		"sf write ${fileaddr} ${kernstart} 0x${filesize}\0" \
@@ -397,6 +500,15 @@
 #define	CONFIG_EXTRA_ENV_SETTINGS \
 	CONSOLE_ARG \
 	NETCONSOLE_ARG \
+	SERIAL_MULTI \
+	TTYUL0 \
+	TTYUL1 \
+	TTYUL2 \
+	TTYUL3 \
+	ESERIAL0 \
+	ESERIAL1 \
+	ESERIAL2 \
+	ESERIAL3 \
 	"autoload=no\0" \
 	"bootfile=image.ub\0" \
 	"netstart=@nstart@\0" \

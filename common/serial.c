@@ -41,7 +41,7 @@ struct serial_device *__default_serial_console (void)
 #elif defined(CONFIG_405GP) || defined(CONFIG_405CR) || defined(CONFIG_440) \
    || defined(CONFIG_405EP) || defined(CONFIG_405EZ) || defined(CONFIG_405EX) \
    || defined(CONFIG_MPC5xxx) || defined(CONFIG_MPC83xx) \
-   || defined(CONFIG_MPC85xx) || defined(CONFIG_MPC86xx)
+   || defined(CONFIG_MPC85xx) || defined(CONFIG_MPC86xx) || defined(CONFIG_MICROBLAZE)
 #if defined(CONFIG_CONS_INDEX) && defined(CONFIG_SYS_NS16550_SERIAL)
 #if (CONFIG_CONS_INDEX==1)
 	return &eserial1_device;
@@ -54,6 +54,21 @@ struct serial_device *__default_serial_console (void)
 #else
 #error "Bad CONFIG_CONS_INDEX."
 #endif
+
+#elif defined(CONFIG_XILINX_UARTLITE)
+
+# ifdef XILINX_UARTLITE_BASEADDR
+	return &uartlite_serial0_device;
+# endif /* XILINX_UARTLITE_BASEADDR */
+# ifdef XILINX_UARTLITE_BASEADDR1
+	return &uartlite_serial1_device;
+# endif /* XILINX_UARTLITE_BASEADDR1 */
+# ifdef XILINX_UARTLITE_BASEADDR2
+	return &uartlite_serial2_device;
+# endif /* XILINX_UARTLITE_BASEADDR2 */
+# ifdef XILINX_UARTLITE_BASEADDR3
+	return &uartlite_serial3_device;
+# endif /* XILINX_UARTLITE_BASEADDR3 */
 #elif defined(CONFIG_UART1_CONSOLE)
 		return &serial1_device;
 #else
@@ -104,12 +119,15 @@ void serial_initialize (void)
 	serial_register (&serial_scc_device);
 #endif
 
+#if !defined(CONFIG_XILINX_405) && !defined(CONFIG_XILINX_440)
 #if defined(CONFIG_405GP) || defined(CONFIG_405CR) || defined(CONFIG_440) \
  || defined(CONFIG_405EP) || defined(CONFIG_405EZ) || defined(CONFIG_405EX) \
  || defined(CONFIG_MPC5xxx)
 	serial_register(&serial0_device);
 	serial_register(&serial1_device);
 #endif
+#endif
+
 
 #if defined(CONFIG_SYS_NS16550_SERIAL)
 #if defined(CONFIG_SYS_NS16550_COM1)
@@ -139,6 +157,21 @@ void serial_initialize (void)
 	serial_register(&s3c24xx_serial1_device);
 	serial_register(&s3c24xx_serial2_device);
 #endif
+#if defined(CONFIG_XILINX_UARTLITE)
+# ifdef XILINX_UARTLITE_BASEADDR
+	serial_register(&uartlite_serial0_device);
+# endif /* XILINX_UARTLITE_BASEADDR */
+# ifdef XILINX_UARTLITE_BASEADDR1
+	serial_register(&uartlite_serial1_device);
+# endif /* XILINX_UARTLITE_BASEADDR1 */
+# ifdef XILINX_UARTLITE_BASEADDR2
+	serial_register(&uartlite_serial2_device);
+# endif /* XILINX_UARTLITE_BASEADDR2 */
+# ifdef XILINX_UARTLITE_BASEADDR3
+	serial_register(&uartlite_serial3_device);
+# endif /* XILINX_UARTLITE_BASEADDR3 */
+#endif /* CONFIG_XILINX_UARTLITE */
+
 	serial_assign (default_serial_console ()->name);
 }
 

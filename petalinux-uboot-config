@@ -134,7 +134,7 @@ function read_config_file ()
 				fi
 			fi
 
-			# Here we get the indexes into our interested partitions
+			# Here we get the indexes of our partitions of interest
 			if [ $field == "NAME" ]; then
 				# Update indexes into your partition
 				if [ $tmp == "boot" ]; then
@@ -147,6 +147,8 @@ function read_config_file ()
 					JFFS2_PAR=$CNT
 				elif [ $tmp == "dtb" ]; then
 					DTB_PAR=$CNT
+				elif [ $tmp == "config" ]; then
+					CONF_PAR=$CNT
 				fi
 
 				# Update our Name array
@@ -340,9 +342,8 @@ function sub_config_file ()
 	DTBNET_START=$((${NET_START} + ${DTBNET_OFFSET}))
 	DTBNET_START=$(printf "0x%x" ${DTBNET_START})
 
-	# Crude attempt to autodetect our IP address
-	[ "${CONFIG_SYSTEM_SERVERIP_ADDRESS}" == "AUTO" ] && \
-		CONFIG_SYSTEM_SERVERIP_ADDRESS="$( /sbin/ifconfig eth0 | egrep -o "inet addr:[0-9]+.[0-9]+.[0-9]+.[0-9]+" | cut -d ':' -f 2)"
+	# Resolve any magic values of SERVERIP address
+	CONFIG_SYSTEM_SERVERIP_ADDRESS=$(petalinux-find-ipaddr ${CONFIG_SYSTEM_SERVERIP_ADDRESS})
 
 	[ "${USE_DHCP}" = "y" ] && DHCP_CMD=dhcp
 
@@ -359,6 +360,8 @@ function sub_config_file ()
 			 s/\@bstart\@/${PAR_ADDR[$BOOT_PAR]}/g
 			 s/\@jffs2size\@/${PAR_SIZE[$JFFS2_PAR]}/g
 			 s/\@jffs2start\@/${PAR_ADDR[$JFFS2_PAR]}/g
+			 s/\@confsize\@/${PAR_SIZE[$CONF_PAR]}/g
+			 s/\@confstart\@/${PAR_ADDR[$CONF_PAR]}/g
 			 s/\@besize\@/${PAR_SIZE[$BOOTENV_PAR]}/g
 			 s/\@bestart\@/${PAR_ADDR[$BOOTENV_PAR]}/g
 			 s/\@dtbsize\@/${PAR_SIZE[$DTB_PAR]}/g

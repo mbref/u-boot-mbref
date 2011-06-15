@@ -37,10 +37,8 @@ void do_reset (void)
 	*((unsigned long *)(CONFIG_SYS_GPIO_0_ADDR)) =
 	    ++(*((unsigned long *)(CONFIG_SYS_GPIO_0_ADDR)));
 #endif
-#ifdef CONFIG_SYS_RESET_ADDRESS
 	puts ("Reseting board\n");
 	asm ("bra r0");
-#endif
 }
 
 int gpio_init (void)
@@ -76,6 +74,10 @@ int board_eth_init(bd_t *bis)
 	 * pci_eth_init() will return 0 if no NICs found, so in that case
 	 * returning -1 will force cpu_eth_init() to be called.
 	 */
+#ifdef CONFIG_XILINX_AXIEMAC
+	return xilinx_axiemac_initialize(bis, XILINX_AXIEMAC_BASEADDR,
+							XILINX_AXIDMA_BASEADDR);
+#endif
 #ifdef CONFIG_XILINX_EMACLITE
 	return xilinx_emaclite_initialize(bis);
 #endif

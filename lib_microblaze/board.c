@@ -47,6 +47,10 @@ extern int interrupts_init (void);
 extern int timer_init (void);
 #endif
 
+unsigned long monitor_flash_len;
+extern char *__end;
+extern char *__text_start;
+
 /*
  * Begin and End of memory area for malloc(), and current "brk"
  */
@@ -128,6 +132,11 @@ void board_init (void)
 	bd->bi_memsize = CONFIG_SYS_SDRAM_SIZE;
 	gd->flags |= GD_FLG_RELOC;      /* tell others: relocation done */
 
+	monitor_flash_len = __end - __text_start;
+
+#ifdef CONFIG_SERIAL_MULTI
+	serial_initialize();
+#endif
 	/* Initialise malloc() area */
 	mem_malloc_init ();
 
