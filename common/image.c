@@ -1185,7 +1185,7 @@ static int fit_check_fdt (const void *fit, int fdt_noffset, int verify)
 #define CONFIG_SYS_FDT_PAD 0x3000
 #endif
 
-#if defined(CONFIG_OF_LIBFDT)
+#if defined(CONFIG_OF_LIBFDT) && defined(CONFIG_LMB)
 /**
  * boot_fdt_add_mem_rsv_regions - Mark the memreserve sections as unusable
  * @lmb: pointer to lmb handle, will be used for memory mgmt
