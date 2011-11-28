@@ -101,6 +101,8 @@ int xilinx_axiemac_initialize(bd_t *bis, unsigned long base_addr,
 							unsigned long dma_addr);
 int xilinx_emaclite_initialize(bd_t *bis, unsigned long base_addr,
 							int txpp, int rxpp);
+int xilinx_ll_temac_initialize(bd_t *bis, unsigned long base_addr,
+						int mode, unsigned long ctrl);
 
 /* Boards with PCI network controllers can call this from their board_eth_init()
  * function to initialize whatever's on board.
