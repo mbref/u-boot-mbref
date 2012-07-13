@@ -39,7 +39,7 @@
 #define CMD_M25PXX_RES		0xab	/* Release from DP, and Read Signature */
 
 struct stmicro_spi_flash_params {
-	u8 idcode1;
+	u16 id;
 	u16 page_size;
 	u16 pages_per_sector;
 	u16 nr_sectors;
@@ -48,56 +48,56 @@ struct stmicro_spi_flash_params {
 
 static const struct stmicro_spi_flash_params stmicro_spi_flash_table[] = {
 	{
-		.idcode1 = 0x11,
+		.id = 0x2011,
 		.page_size = 256,
 		.pages_per_sector = 128,
 		.nr_sectors = 4,
 		.name = "M25P10",
 	},
 	{
-		.idcode1 = 0x15,
+		.id = 0x2015,
 		.page_size = 256,
 		.pages_per_sector = 256,
 		.nr_sectors = 32,
 		.name = "M25P16",
 	},
 	{
-		.idcode1 = 0x12,
+		.id = 0x2012,
 		.page_size = 256,
 		.pages_per_sector = 256,
 		.nr_sectors = 4,
 		.name = "M25P20",
 	},
 	{
-		.idcode1 = 0x16,
+		.id = 0x2016,
 		.page_size = 256,
 		.pages_per_sector = 256,
 		.nr_sectors = 64,
 		.name = "M25P32",
 	},
 	{
-		.idcode1 = 0x13,
+		.id = 0x2013,
 		.page_size = 256,
 		.pages_per_sector = 256,
 		.nr_sectors = 8,
 		.name = "M25P40",
 	},
 	{
-		.idcode1 = 0x17,
+		.id = 0x2017,
 		.page_size = 256,
 		.pages_per_sector = 256,
 		.nr_sectors = 128,
 		.name = "M25P64",
 	},
 	{
-		.idcode1 = 0x14,
+		.id = 0x2014,
 		.page_size = 256,
 		.pages_per_sector = 256,
 		.nr_sectors = 16,
 		.name = "M25P80",
 	},
 	{
-		.idcode1 = 0x18,
+		.id = 0x2018,
 		.page_size = 256,
 		.pages_per_sector = 1024,
 		.nr_sectors = 64,
@@ -131,13 +131,13 @@ struct spi_flash *spi_flash_probe_stmicro(struct spi_slave *spi, u8 * idcode)
 
 	for (i = 0; i < ARRAY_SIZE(stmicro_spi_flash_table); i++) {
 		params = &stmicro_spi_flash_table[i];
-		if (params->idcode1 == idcode[2]) {
+		if (params->id == ((idcode[1] << 8) | idcode[2]))
 			break;
-		}
 	}
 
 	if (i == ARRAY_SIZE(stmicro_spi_flash_table)) {
-		debug("SF: Unsupported STMicro ID %02x\n", idcode[1]);
+		debug("SF: Unsupported STMicro ID %02x%02x\n",
+				idcode[1], idcode[2]);
 		return NULL;
 	}
 
