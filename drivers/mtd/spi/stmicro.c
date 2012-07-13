@@ -103,6 +103,13 @@ static const struct stmicro_spi_flash_params stmicro_spi_flash_table[] = {
 		.nr_sectors = 64,
 		.name = "M25P128",
 	},
+	{
+		.id = 0xba18,
+		.page_size = 256,
+		.pages_per_sector = 256,
+		.nr_sectors = 256,
+		.name = "N25Q128",
+	},
 };
 
 static int stmicro_erase(struct spi_flash *flash, u32 offset, size_t len)
