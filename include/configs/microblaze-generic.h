@@ -254,10 +254,10 @@
 #  define CONFIG_ENV_SPI_MAX_HZ		CONFIG_SF_DEFAULT_SPEED
 #  define CONFIG_ENV_SPI_CS		CONFIG_SF_DEFAULT_CS
 /* 128K(two sectors) for env */
-#  define CONFIG_ENV_SECT_SIZE	0x10000
+#  define CONFIG_ENV_SECT_SIZE	XILINX_SPI_FLASH_SECTSIZE
 #  define CONFIG_ENV_SIZE 	(2 * CONFIG_ENV_SECT_SIZE)
 /* Warning: adjust the offset in respect of other flash content and size */
-#  define CONFIG_ENV_OFFSET	(128 * CONFIG_ENV_SECT_SIZE) /* at 8MB */
+#  define CONFIG_ENV_OFFSET	(XILINX_SPI_FLASH_SIZE - CONFIG_ENV_SIZE)
 # endif /* SPIFLASH && !RAMBOOT */
 #else /* !SPIFLASH */
 
