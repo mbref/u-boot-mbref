@@ -389,7 +389,7 @@
 #endif
 
 /* Miscellaneous configurable options */
-#define	CONFIG_SYS_PROMPT	"U-Boot-mONStR> "
+#define	CONFIG_SYS_PROMPT	"U-Boot-mbref> "
 /* size of console buffer */
 #define	CONFIG_SYS_CBSIZE	512
  /* print buffer size */
