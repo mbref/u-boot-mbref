@@ -27,6 +27,17 @@
 
 #include "../board/xilinx/microblaze-generic/xparameters.h"
 
+/*
+ * http://u-boot.10912.n7.nabble.com/Microblaze-and-Sparc-boards-are-broken-because-of-common-timer-func-tp167457p167486.html
+ *
+ * QnD hack: disable systemace driver compilation with gcc version
+ *           greater or equal than 4.8
+ */
+#if defined(__microblaze__) && ( (__GNUC__ == 4) && (__GNUC_MINOR__ >= 8) )
+#undef XILINX_SYSACE_BASEADDR
+#undef XILINX_SYSACE_MEM_WIDTH
+#endif
+
 /* MicroBlaze CPU */
 #define	CONFIG_MICROBLAZE	1
 #define	MICROBLAZE_V5		1
