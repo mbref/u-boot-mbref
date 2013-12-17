@@ -296,7 +296,10 @@
 #define CONFIG_CMD_IRQ
 #define CONFIG_CMD_MFSL
 #define CONFIG_CMD_ECHO
-#define CONFIG_CMD_GPIO
+
+#if defined(CONFIG_XILINX_GPIO)
+# define CONFIG_CMD_GPIO
+#endif
 
 #define CONFIG_CMD_ROMFS
 

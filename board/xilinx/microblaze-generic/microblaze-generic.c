@@ -17,7 +17,29 @@
 #include <asm/asm.h>
 #include <asm/gpio.h>
 
-#ifdef CONFIG_XILINX_GPIO
+#ifndef CONFIG_XILINX_GPIO
+/*
+ * w/o xilinx gpio driver the fdtdec library part will
+ * missing symbols: gpio_get_value(), gpio_set_value(),
+ * and gpio_request()
+ */
+
+int gpio_get_value(unsigned gpio)
+{
+	return 0;
+}
+
+int gpio_set_value(unsigned gpio, int value)
+{
+	return -1;
+}
+
+int gpio_request(unsigned gpio, const char *label)
+{
+	return -1;
+}
+
+#else
 static int reset_pin = -1;
 #endif
 
